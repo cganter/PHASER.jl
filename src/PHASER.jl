@@ -1,5 +1,5 @@
 module PHASER
 
-# Write your package code here.
+include("ph_util.jl")
 
 end
