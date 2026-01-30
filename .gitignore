@@ -1,1 +1,12 @@
-/Manifest*.toml
+*.jl.*.cov
+*.jl.cov
+*.jl.mem
+*.zip
+*.pdf
+*.ps
+*.eps
+*.h5
+*.svg
+scratch.jl
+/Manifest.toml
+/src/data/two_echoes
