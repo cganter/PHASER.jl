@@ -6,8 +6,6 @@ Carl Ganter, Jonathan Stelter, Dimitrios Karampinos, Oliver Bieri.\
 Subspace-based phase regularization (PHASER) for rapid B0-mapping.\
 [Journal details follow]
 
-[![DOI](https://zenodo.org/badge/1140093935.svg)](https://doi.org/10.5281/zenodo.18377775)
-
 ## How to use
 
 - Clone, activate (and instantiate) the repository at https://github.com/cganter/PHASER.jl.
@@ -20,7 +18,7 @@ julia> PHASER.generate_figures()
 
 ## Data availability
 
-The two-echo data have not been uploaded to the repository, but can provided upon reasonable request.
+The 3D data have not been uploaded to the repository, but can provided upon reasonable request.
 
 ## Remark
 

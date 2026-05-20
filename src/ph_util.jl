@@ -1,4 +1,5 @@
-using Statistics, Random, LaTeXStrings, CairoMakie, LinearAlgebra, MAT
+using Revise
+using Statistics, Random, LaTeXStrings, CairoMakie, LinearAlgebra, MAT, HDF5
 import VP4Optim as VP
 import B0Map as BM
 
@@ -10,9 +11,31 @@ import B0Map as BM
 Generate all figures in the article.
 """
 function generate_figures(save_fig=false)
-    fig_ismrm_challenge(data_set=12, slice=2, save_fig=save_fig)
-    fig_ismrm_challenge(data_set=5, slice=1, save_fig=save_fig)
-    isdir("data/two_echoes") && fig_cor_two_echoes_phaser(save_fig=save_fig)
+    res = Dict()
+
+    #res[:fig_1] = fig_ismrm_challenge(data_set=5, slice=1, save_fig=save_fig)
+    #res[:fig_2] = fig_ismrm_challenge(data_set=12, slice=2, save_fig=save_fig)
+    #isdir("data/three_echoes") && (res[:fig_3] = fig_cor_three_echoes_phaser(save_fig=save_fig))
+    isdir("data/two_echoes") && (res[:fig_4] = fig_cor_two_echoes_phaser(save_fig=save_fig))
+
+    res
+end
+
+"""
+    orient_ISMRM(data_set::Int)
+
+Rotate data set properly.
+"""
+function orient_ISMRM(data_set::Int)
+    if data_set ∈ (1:12..., 14,)
+        x -> rotr90(x)
+    elseif data_set ∈ (13, 17,)
+        x -> rot180(x)
+    elseif data_set ∈ (16,)
+        x -> rotl90(x)
+    else
+        x -> x
+    end
 end
 
 """
@@ -81,21 +104,318 @@ function ismrm_challenge(
     return (; fitpar, PH, pdff_ref, datPar, data_set, bm, data)
 end
 
-"""
-    orient_ISMRM(data_set::Int)
+function fig_ismrm_challenge(; data_set, slice, save_fig)
+    println()
+    println("========================================================")
+    println("ISMRM data set ", data_set, ", slice ", slice)
+    println("========================================================")
+    println()
 
-Rotate data set properly.
-"""
-function orient_ISMRM(data_set::Int)
-    if data_set ∈ (1:12..., 14,)
-        x -> rotr90(x)
-    elseif data_set ∈ (13, 17,)
-        x -> rot180(x)
-    elseif data_set ∈ (16,)
-        x -> rotl90(x)
-    else
-        x -> x
+    BLAS.set_num_threads(1)
+
+    # ISMRM challenge 2012 data sets:
+    oi = orient_ISMRM(data_set)
+
+    # 1: tibia, tra
+    # 2: upper body, cor
+    # 3: foot, sag
+    # 4: knee, sag
+    # 5: 2 lower legs, tra
+    # 6: 2 lower legs, tra
+    # 7: foot, sag
+    # 8: thorax, tra (strong gradient)
+    # 9: head, cor (strong gradient)
+    # 10: hand, cor
+    # 11: liver, lung, spleen, tra
+    # 12: liver, lung, tra
+    # 13: thorax, tra (motion artifacts)
+    # 14: head & shoulders, cor
+    # 15: breast, tra (strong gradient)
+    # 16: torso, sag
+    # 17: shoulder, cor
+
+    # set PHASER parameters
+    fitopt = BM.fitOpt()
+    fitopt.K = [5, 5]
+    fitopt.redundancy = Inf
+    fitopt.os_fac = [1.1]
+    fitopt.balance = 5
+    fitopt.rapid_balance = true
+
+    ##
+
+    # apply PHASER
+    cal = ismrm_challenge(fitopt; data_set=data_set, slice=slice)
+
+    # show timing
+    println()
+    println(cal.bm.to)
+    println()
+
+    ##
+
+    n_bal = cal.PH.n_bal
+    n_max = n_bal + 1
+
+    _ϕ = [(val=:ϕ, rng_2π=false, cm=:roma, n=n, colbar=true) for n in 1:n_max]
+    _Φn_R = [(val=:Φn_R, rng_2π=true, cm=:romaO, n=n, colbar=true) for n in 0:n_max]
+    _pdff = [(val=:pdff, cm=:imola, n=n, colbar=true) for n in 0:n_max]
+    _hist_Φ = [(val=:hist_Φ, n=n, nbins=100, bin_mode=:fixed) for n in 0:n_max]
+    _hist_a∇Φ = [(val=:hist_a∇Φ, n=n, nbins=50, bin_mode=:fixed) for n in 0:n_max]
+
+    plots = [_hist_a∇Φ[1] _Φn_R[1] _hist_Φ[1] _pdff[1];
+        _ϕ[1] _Φn_R[2] _hist_Φ[2] _pdff[2];
+        _ϕ[end] _Φn_R[end] _hist_Φ[end] _pdff[end]]
+
+    (fig, _, _, _) = phaser_plots(plots, cal.PH, cal.fitpar, fitopt;
+        width_per_plot=280,
+        height_per_plot=210,
+        col_in=:blue, col_out=:red, alpha_out=0.3,
+        font_pt=12, label_pt=10,
+        slice=1,
+        j=1,
+        oi=oi,
+        letters=true,
+    )
+
+    display(fig)
+
+    ## save results
+
+    if save_fig
+        fig_name = data_set == 5 ? "fig_1" : "fig_2"
+        save(fig_name * ".svg", fig)
+        save(fig_name * ".eps", fig)
+        run(`epspdf $fig_name".eps"`)
     end
+
+    return fig
+end
+
+"""
+    fig_cor_three_echoes_phaser(;
+    save_fig=false,
+    thresh=70, #25,
+    slice=37,
+)
+
+TBW
+"""
+function fig_cor_three_echoes_phaser(;
+    save_fig=false,
+    thresh=70, #25,
+    slice=37,
+)
+    println()
+    println("========================================================")
+    println("Three-echo data")
+    println("========================================================")
+    println()
+
+    BLAS.set_num_threads(1)
+
+    file_str = "data/three_echoes/20151101_171032_0302_ImDataParams.mat"
+
+    datPar = matread(file_str)["ImDataParams"]
+
+    TEs = 1000.0 * datPar["TE_s"][:]
+    nTE = length(TEs)
+    B0 = datPar["fieldStrength_T"]
+    precession = (datPar["precessionIsClockwise"] != 1.0) ? :clockwise : :counterclockwise
+
+    # read data and mask
+    Nρ = size(datPar["signal"])[1:3]
+    data = zeros(ComplexF64, Nρ..., nTE)
+    copy!(data, datPar["signal"])
+    S = reshape(maximum(abs.(data), dims=4) .> thresh, Nρ...)
+
+    # 10-peak bone marrow model
+    ppm_fat = [-3.8, -3.4, -3.1, -2.68, -2.46, -1.95, -0.5, 0.49, 0.59]
+    ampl_fat = [0.0899, 0.5834, 0.0599, 0.0849, 0.0599, 0.0150, 0.0400, 0.01, 0.0569]
+
+    # set up GRE parameters
+    grePar = VP.modpar(BM.GREMultiEchoWF;
+        ts=TEs,
+        B0=B0,
+        ppm_fat=ppm_fat,
+        ampl_fat=ampl_fat,
+        precession=precession)
+
+    # generate instance of FitPar ...
+    fitpar = BM.fitPar(grePar, deepcopy(data), deepcopy(S))
+
+    # ... and of FitOpt
+    fitopt = BM.fitOpt()
+    fitopt.K = [5, 5, 5]
+    fitopt.R2s_rng = [0.0, 5.0]   # R2* ≡ 0 for two-echo GRE
+    fitopt.redundancy = 42
+    fitopt.subsampling = :random
+    fitopt.local_fit = false # we only want to reconstruct a single slice
+    fitopt.os_fac = [1.1]
+    fitopt.rng = MersenneTwister(42)
+    fitopt.balance = 2
+    fitopt.rapid_balance = true
+
+    cal = BM.B0map!(fitpar, fitopt)
+
+    # show timing
+    println()
+    println(cal.to)
+    println()
+
+    n_bal = cal.PH.n_bal
+    n_max = n_bal + 1
+
+    _ϕ = [(val=:ϕ, rng_2π=false, cm=:roma, n=n, colbar=true) for n in 1:n_max]
+    _Φn_R = [(val=:Φn_R, rng_2π=true, cm=:romaO, n=n, colbar=true) for n in 0:n_max]
+    _pdff = [(val=:pdff, cm=:imola, n=n, colbar=true) for n in 0:n_max]
+    _hist_Φ = [(val=:hist_Φ, n=n, nbins=40, bin_mode=:rice) for n in 0:n_max]
+    _hist_a∇Φ = [(val=:hist_a∇Φ, n=n, nbins=40, bin_mode=:rice) for n in 0:n_max]
+    _χ2_Φ = (val=:χ2_Φ, log10=false, cm=:batlow, colbar=true)
+    _max_abs_data = (val=:max_abs_data, cm=:batlow, colbar=true)
+
+    plots = [_hist_a∇Φ[1] _Φn_R[1] _hist_Φ[1] _pdff[1];
+        _ϕ[1] _Φn_R[2] _hist_Φ[2] _pdff[2];
+        _ϕ[end] _Φn_R[end] _hist_Φ[end] _pdff[end]]
+
+    (fig, _, _, _) = phaser_plots(plots, cal.PH, fitpar, fitopt;
+        width_per_plot=230,
+        height_per_plot=210,
+        col_in=:blue, col_out=:red, alpha_out=0.3,
+        font_pt=12, label_pt=8,
+        slice=slice,
+        j=1,
+        oi=x -> rotr90(x),
+        letters=true,
+    )
+
+    display(fig)
+
+    ## save results
+
+    if save_fig
+        fig_name = "fig_3"
+        save(fig_name * ".svg", fig)
+        save(fig_name * ".eps", fig)
+        run(`epspdf $fig_name".eps"`)
+    end
+
+    return fig
+end
+
+"""
+    fig_cor_two_echoes_phaser(; save_fig)
+
+TBW
+"""
+function fig_cor_two_echoes_phaser(; save_fig)
+    println()
+    println("========================================================")
+    println("Two-echo data")
+    println("========================================================")
+    println()
+
+    BLAS.set_num_threads(1)
+
+    # read the HDF5 file
+    fid = h5open("data/two_echoes/20241024_171954_702_ImDataParamsBMRR_subspace2comp_wfi.h5", "r")
+    obj_data = read(fid["ImDataParams"])
+
+    signal = obj_data["signal"][:,:,:,1:end-1,:]
+    ss = size(signal)
+    data = zeros(ComplexF64, ss[3:5]..., ss[1])
+    for i in 1:2
+        data[:, :, :, i] .= signal[i, 1, :, :, :]
+    end
+
+    # the supplied mask is too inclusive
+    # the following choice is better but far from perfect..
+    # the choice is insofar important as 
+    S = abs.(data[:, :, :, 2]) .> 0.25 # 0.5
+
+    # echo times
+    TEs = 1000obj_data["TE_s"]  # the expected unit is [ms]
+
+    # field strength
+    B0 = Float64(attrs(fid["ImDataParams"])["fieldStrength_T"])
+
+    # fat model
+    ppm_fat = read(fid["AlgoParams"]["FatModel"]["freqs_ppm"])
+    ampl_fat = read(fid["AlgoParams"]["FatModel"]["relAmps"])
+
+    # close the HDF5 file
+    close(fid)
+
+    # scanner-dependent convention for the orientation of precession
+    precession = :counterclockwise
+
+    # set up GRE parameters
+    grePar = VP.modpar(BM.GREMultiEchoWF;
+        ts=TEs,
+        B0=B0,
+        ppm_fat=ppm_fat,
+        ampl_fat=ampl_fat,
+        precession=precession)
+
+    # generate instance of FitPar ...
+    fitpar = BM.fitPar(grePar, deepcopy(data), deepcopy(S))
+
+    # ... and of FitOpt
+    fitopt = BM.fitOpt()
+    fitopt.K = [5, 5, 5]
+    fitopt.R2s_rng = [0.0, 0.0]   # R2* ≡ 0 for two-echo GRE
+    fitopt.redundancy = 42
+    fitopt.subsampling = :random
+    fitopt.local_fit = false # we only want to reconstruct a single slice
+    fitopt.os_fac = [1.1]
+    fitopt.rng = MersenneTwister(42)
+    fitopt.balance = 2
+    fitopt.rapid_balance = true
+
+    cal = BM.B0map!(fitpar, fitopt)
+
+    # show timing
+    println()
+    println(cal.to)
+    println()
+
+    n_bal = cal.PH.n_bal
+    n_max = n_bal + 1
+
+    _ϕ = [(val=:ϕ, rng_2π=true, cm=:romaO, n=n, colbar=true) for n in 1:n_max]
+    _Φn_R = [(val=:Φn_R, rng_2π=true, cm=:romaO, n=n, colbar=true) for n in 0:n_max]
+    _Φϕ_R = [(val=:Φϕ_R, rng_2π=true, cm=:romaO, n=n, colbar=true) for n in 1:n_max]
+    _pdff = [(val=:pdff, cm=:imola, n=n, colbar=true) for n in 0:n_max]
+    _hist_Φ = [(val=:hist_Φ, n=n, nbins=40, bin_mode=:rice) for n in 0:n_max]
+    _hist_a∇Φ = [(val=:hist_a∇Φ, n=n, nbins=40, bin_mode=:rice) for n in 0:n_max]
+
+    plots = [_hist_a∇Φ[1] _Φn_R[1] _hist_Φ[1] _pdff[1];
+        _ϕ[1] _Φϕ_R[1] _hist_Φ[2] _pdff[2];
+        _ϕ[end] _Φϕ_R[end] _hist_Φ[end] _pdff[end]]
+
+    (fig, _, _, _) = phaser_plots(plots, cal.PH, fitpar, fitopt;
+        width_per_plot=230,
+        height_per_plot=210,
+        col_in=:blue, col_out=:red, alpha_out=0.3,
+        font_pt=12, label_pt=8,
+        slice=64,
+        j=1,
+        oi=x -> rotl90(x[:, end:-1:1]),
+        letters=true,
+    )
+
+    display(fig)
+
+    ## save results
+
+    if save_fig
+        fig_name = "fig_4"
+        save(fig_name * ".svg", fig)
+        save(fig_name * ".eps", fig)
+        run(`epspdf $fig_name".eps"`)
+    end
+
+    return fig
 end
 
 """
@@ -109,8 +429,6 @@ end
     oi=x -> x,
     ϕns=nothing,
     letters=false,
-    ϕ_loc=nothing,
-    pdff=nothing,
 )
 
 TBW
@@ -125,22 +443,35 @@ function phaser_plots(plots, PH, fitpar, fitopt;
     oi=x -> x,
     ϕns=nothing,
     letters=false,
-    ϕ_loc=nothing,
-    pdff=nothing,
 )
     nrows, ncols = size(plots)
+
+    println("sum(S) = ", sum(PH.S))
+    println("sum(R) = ", sum(fitpar.S))
+    println("sum(S) / sum(R) = ", round(100sum(PH.S) / sum(fitpar.S), digits=1))
+    println("size(S) = ", size(PH.S))
+
+    S = @views PH.S[:, :, slice]
+    R = @views fitpar.S[:, :, slice]
+    noR = (!).(R)
+
+    data = (ndims(fitpar.data) == 3 || size(fitpar.data, 4) == 1) ? fitpar.data : @views fitpar.data[:, :, slice, :]
+    max_abs2_data = maximum(abs2.(data), dims=3)[:, :, 1]
+    max_abs2_data[noR] .= NaN
+    grePar = fitpar.grePar
+    fp = BM.fitPar(grePar, data, R)
+    fo = deepcopy(fitopt)
+    BM.set_num_phase_intervals(fp, fo, 0)
+    fo.optim = true
 
     Φ_ML = @views PH.Φ_ML[:, :, slice]
     ∇Φ_ML = @views PH.∇Φ_ML[j][:, :, slice]
     a∇Φ_ML = @views abs.(PH.∇Φ_ML[j][:, :, slice])
+
     Φ = @views [Φ_[:, :, slice] for Φ_ in PH.Φ]
     ϕ = @views [ϕ_[:, :, slice] for ϕ_ in PH.ϕ]
-    ϕ_Φ = @views [ϕ_ - Φ_ML for ϕ_ in ϕ]
     ∇Φ = @views [∇Φ_[j][:, :, slice] for ∇Φ_ in PH.∇Φ]
     a∇Φ = @views [abs.(∇Φ_[j][:, :, slice]) for ∇Φ_ in PH.∇Φ]
-    S = @views PH.S[:, :, slice]
-    R = @views fitpar.S[:, :, slice]
-    noR = (!).(R)
     Sj = @views PH.Sj[j][:, :, slice]
     noSj = (!).(Sj)
     ∇Φ_ML[noSj] .= NaN
@@ -148,49 +479,47 @@ function phaser_plots(plots, PH, fitpar, fitopt;
     map(x -> x[noSj] .= NaN, a∇Φ)
     T = @views [T_[:, :, slice] for T_ in PH.T]
     Tj = @views [Tj_[j][:, :, slice] for Tj_ in PH.Tj]
-    Φ_red = @views [(Φ_red_ = deepcopy(Φ_); Φ_red_[(!).(T_)] .= NaN; Φ_red_) for (Φ_, T_) in zip(Φ, T[2:end])]
-    ∇Φ_red = @views [(∇Φ_red_ = deepcopy(∇Φ_); ∇Φ_red_[(!).(Tj_)] .= NaN; ∇Φ_red_) for (∇Φ_, Tj_) in zip(∇Φ, Tj[2:end])]
-    a∇Φ_red = @views [(a∇Φ_red_ = deepcopy(a∇Φ_); a∇Φ_red_[(!).(Tj_)] .= NaN; a∇Φ_red_) for (a∇Φ_, Tj_) in zip(a∇Φ, Tj[2:end])]
-    data = (ndims(fitpar.data) == 3 || size(fitpar.data, 4) == 1) ? fitpar.data : @views fitpar.data[:, :, slice, :]
-    grePar = fitpar.grePar
-    fp = BM.fitPar(grePar, data, R)
-    fo = deepcopy(fitopt)
-    BM.set_num_phase_intervals(fp, fo, 0)
-    fo.optim = true
 
     nΦ = length(Φ)
     isnothing(ϕns) && (ϕns = 1:nΦ)
 
-    if isnothing(ϕ_loc)
-        if S == R
-            ϕ_loc = [Φ_ML]
-            fp.ϕ[R] = @views Φ_ML[R]
-        else
-            BM.local_fit!(fp, fitopt)
-            ϕ_loc = [deepcopy(fp.ϕ)]
-            ϕ_loc[1][noR] .= NaN
-        end
-
-        for i in 1:nΦ
-            fp.ϕ[R] .= @views ϕ[i][R]
-
-            BM.local_fit!(fp, fo)
-            push!(ϕ_loc, deepcopy(fp.ϕ))
-
-            ϕ_loc[end][noR] .= NaN
+    ns = Int[]
+    for plt in plots
+        if plt.val ∈ (:Φn_R, :pdff)
+            plt.n ∉ ns && push!(ns, plt.n)
         end
     end
 
-    if isnothing(pdff)
-        for ϕ_loc_ in ϕ_loc
-            fp.ϕ[R] = @views ϕ_loc_[R]
+    Φn_R = Vector{Any}(undef, nΦ + 1)
+    Φϕ_R = Vector{Any}(undef, nΦ)
+    pdff = Vector{Any}(undef, nΦ + 1)
 
-            if isnothing(pdff)
-                pdff = [BM.fat_fraction_map(fp, fo)]
-            else
-                push!(pdff, BM.fat_fraction_map(fp, fo))
-            end
-            pdff[end][noR] .= NaN
+    BM.local_fit!(fp, fitopt)
+    Φn_R[1] = deepcopy(fp.ϕ)
+    Φn_R[1][noR] .= NaN
+    χ2_Φ = fp.χ2 ./ max_abs2_data
+    χ2_Φ[noR] .= NaN
+
+    fp.ϕ[R] = @views Φn_R[1][R]
+    pdff[1] = BM.fat_fraction_map(fp, fo)
+    pdff[1][noR] .= NaN
+
+    for i in 1:nΦ
+        if i ∈ ns
+            fp.ϕ[R] .= @views ϕ[i][R]
+
+            BM.local_fit!(fp, fo)
+            Φϕ_R[i] = deepcopy(fp.ϕ)
+            Φn_R[i+1] = deepcopy(Φϕ_R[i])
+
+            fp.ϕ[R] = @views Φϕ_R[i][R]
+            pdff[i+1] = BM.fat_fraction_map(fp, fo)
+            pdff[i+1][noR] .= NaN
+
+            Φn_R[i+1][R] .= @views BM.map_2π.(Φn_R[1][R] .- ϕ[i][R])
+
+            Φn_R[i+1][noR] .= NaN
+            Φϕ_R[i][noR] .= NaN
         end
     end
 
@@ -219,9 +548,52 @@ function phaser_plots(plots, PH, fitpar, fitopt;
 
             # --------------------------------------------------------------------
 
+            if plt.val == :max_abs_data
+                ax.title = L"$$max\_abs\_data"
+                hidedecorations!(ax)
+
+                heatmap!(ax,
+                    oi(sqrt.(max_abs2_data)),
+                    colormap=plt.cm,
+                    nan_color=:black,
+                )
+
+                if plt.colbar
+                    Colorbar(fig[ir, i_col[ic]+1],
+                        colormap=plt.cm,
+                    )
+                end
+            end
+
+            # --------------------------------------------------------------------
+
+            if plt.val == :χ2_Φ
+                ax.title = L"$\chi^2\,\left(\,\Phi\,\right)$"
+                hidedecorations!(ax)
+
+                χ2_show = plt.log10 ? log10.(abs.(χ2_Φ)) : abs.(χ2_Φ)
+                lim = (median(χ2_show[R]) - std(χ2_show[R]), max(χ2_show[R]...))
+
+                heatmap!(ax,
+                    plt.log10 ? oi(log10.(abs.(χ2_Φ))) : oi(abs.(χ2_Φ)),
+                    colormap=plt.cm,
+                    colorrange=lim,
+                    nan_color=:black,
+                )
+
+                if plt.colbar
+                    Colorbar(fig[ir, i_col[ic]+1],
+                        colorrange=lim,
+                        colormap=plt.cm,
+                    )
+                end
+            end
+
+            # --------------------------------------------------------------------
+
             if plt.val == :Φ
                 n = plt.n
-                ax.title = n == 0 ? L"$\Phi$" : L"$\mathcal{P}\,\left[\,\Phi - \varphi^{(%$n)}\,\right]$"
+                ax.title = n == 0 ? L"$\Phi$" : L"$\Delta^{(%$n)}$"
                 hidedecorations!(ax)
 
                 heatmap!(ax,
@@ -243,59 +615,17 @@ function phaser_plots(plots, PH, fitpar, fitopt;
 
             # --------------------------------------------------------------------
 
-            if plt.val == :∇Φ
-                n = plt.n
-                ax.title = n == 0 ? L"$\nabla_{%$j}\,\Phi$" : L"$\nabla_{%$j}\,\Phi^{(%$n)}$"
-                hidedecorations!(ax)
-
-                heatmap!(ax,
-                    n == 0 ? oi(∇Φ_ML) : oi(∇Φ[n]),
-                    colormap=plt.cm,
-                    colorrange=plt.cm_rng,
-                    nan_color=:black,
-                )
-
-                if plt.colbar
-                    Colorbar(fig[ir, i_col[ic]+1],
-                        colorrange=plt.cm_rng,
-                        colormap=plt.cm,
-                        ticklabelsize=label_pt,
-                    )
-                end
-            end
-
-            # --------------------------------------------------------------------
-
-            if plt.val == :a∇Φ
-                n = plt.n
-                ax.title = n == 0 ? L"$|\,\nabla_{%$j}\,\Phi\,|$" : L"$|\,\nabla_{%$j}\,\Phi^{(%$n)}\,|$"
-                hidedecorations!(ax)
-
-                heatmap!(ax,
-                    n == 0 ? oi(a∇Φ_ML) : oi(a∇Φ[n]),
-                    colormap=plt.cm,
-                    colorrange=plt.cm_rng,
-                    nan_color=:black,
-                )
-
-                if plt.colbar
-                    Colorbar(fig[ir, i_col[ic]+1],
-                        colorrange=plt.cm_rng,
-                        colormap=plt.cm,
-                        ticklabelsize=label_pt,
-                    )
-                end
-            end
-
-            # --------------------------------------------------------------------
-
             if plt.val == :Φ_red
                 n = plt.n
-                ax.title = L"$\mathcal{P}\,\left[\,\Phi - \varphi^{(%$n)}\,\right]$"
+                ax.title = L"$\Delta^{(%$n)}$"
                 hidedecorations!(ax)
 
+                Φ_red = deepcopy(Φn_R[n+1])
+                Φ_red[(!).(T[n+1])] .= NaN
+
                 heatmap!(ax,
-                    oi(Φ_red[n]),
+                    oi(Φ_red),
+                    #oi(Φn_R[n+1]),
                     colormap=plt.cm,
                     colorrange=(-π, π),
                     nan_color=:black,
@@ -307,52 +637,6 @@ function phaser_plots(plots, PH, fitpar, fitopt;
                         colormap=plt.cm,
                         ticklabelsize=label_pt,
                         ticks=([-π, 0.0, π], ["-π", "0", "π"]),
-                    )
-                end
-            end
-
-            # --------------------------------------------------------------------
-
-            if plt.val == :∇Φ_red
-                n = plt.n
-                ax.title = L"$\nabla_%$j\,\Phi^{(%$n)}$"
-                hidedecorations!(ax)
-
-                heatmap!(ax,
-                    oi(∇Φ_red[n]),
-                    colormap=plt.cm,
-                    colorrange=plt.cm_rng,
-                    nan_color=:black,
-                )
-
-                if plt.colbar
-                    Colorbar(fig[ir, i_col[ic]+1],
-                        colorrange=plt.cm_rng,
-                        colormap=plt.cm,
-                        ticklabelsize=label_pt,
-                    )
-                end
-            end
-
-            # --------------------------------------------------------------------
-
-            if plt.val == :a∇Φ_red
-                n = plt.n
-                ax.title = L"$|\,\nabla_%$j\,\Phi^{(%$n)}\,|$"
-                hidedecorations!(ax)
-
-                heatmap!(ax,
-                    oi(a∇Φ_red[n]),
-                    colormap=plt.cm,
-                    colorrange=plt.cm_rng,
-                    nan_color=:black,
-                )
-
-                if plt.colbar
-                    Colorbar(fig[ir, i_col[ic]+1],
-                        colorrange=plt.cm_rng,
-                        colormap=plt.cm,
-                        ticklabelsize=label_pt,
                     )
                 end
             end
@@ -395,42 +679,59 @@ function phaser_plots(plots, PH, fitpar, fitopt;
 
             # --------------------------------------------------------------------
 
-            if plt.val == :ϕ_loc
+            if plt.val == :Φn_R
                 n = plt.n
 
                 if n == 0
                     ax.title = L"$\Phi$"
                 else
-                    ax.title = plt.rng_2π ?
-                               L"$\mathcal{P}\,\left[\,\Phi\left(\varphi^{(%$n)}\right)\,\right]$" :
-                               L"$\Phi\left(\varphi^{(%$n)}\right)$"
+                    ax.title = L"$\Delta^{(%$n)}$"
                 end
                 hidedecorations!(ax)
 
-                rng_ϕ = plt.rng_2π ? (-π, π) : (min(ϕ[end][R]..., -π), max(ϕ[end][R]..., π))
+                rng_ϕ = (-π, π)
 
                 heatmap!(ax,
-                    plt.rng_2π ? oi(BM.map_2π(ϕ_loc[n+1])) : oi(ϕ_loc[n+1]),
+                    oi(Φn_R[n+1]),
                     colormap=plt.cm,
                     colorrange=rng_ϕ,
                     nan_color=:black,
                 )
 
                 if plt.colbar
-                    if plt.rng_2π || n == 0
-                        Colorbar(fig[ir, i_col[ic]+1],
-                            colorrange=(-π, π),
-                            colormap=plt.cm,
-                            ticklabelsize=label_pt,
-                            ticks=([-π, 0.0, π], ["-π", "0", "π"]),
-                        )
-                    else
-                        Colorbar(fig[ir, i_col[ic]+1],
-                            colorrange=rng_ϕ,
-                            colormap=plt.cm,
-                            ticklabelsize=label_pt,
-                        )
-                    end
+                    Colorbar(fig[ir, i_col[ic]+1],
+                        colorrange=(-π, π),
+                        colormap=plt.cm,
+                        ticklabelsize=label_pt,
+                        ticks=([-π, 0.0, π], ["-π", "0", "π"]),
+                    )
+                end
+            end
+
+            # --------------------------------------------------------------------
+
+            if plt.val == :Φϕ_R
+                n = plt.n
+
+                ax.title = L"$\Phi^{(%$n)}$"
+                hidedecorations!(ax)
+
+                rng_ϕ = (-π, π)
+
+                heatmap!(ax,
+                    oi(Φϕ_R[n]),
+                    colormap=plt.cm,
+                    colorrange=rng_ϕ,
+                    nan_color=:black,
+                )
+
+                if plt.colbar
+                    Colorbar(fig[ir, i_col[ic]+1],
+                        colorrange=(-π, π),
+                        colormap=plt.cm,
+                        ticklabelsize=label_pt,
+                        ticks=([-π, 0.0, π], ["-π", "0", "π"]),
+                    )
                 end
             end
 
@@ -439,7 +740,7 @@ function phaser_plots(plots, PH, fitpar, fitopt;
             if plt.val == :pdff
                 n = plt.n
 
-                ax.title = n == 0 ? L"PDFF: $\Phi$" : L"PDFF: $\Phi\left(\varphi^{(%$n)}\right)$"
+                ax.title = n == 0 ? L"PDFF: $\Phi$" : L"PDFF: $\Phi^{(%$n)}$"
                 hidedecorations!(ax)
 
                 heatmap!(ax,
@@ -461,27 +762,10 @@ function phaser_plots(plots, PH, fitpar, fitopt;
 
             # --------------------------------------------------------------------
 
-            if plt.val == :hist_ϕ_Φ
-                n = plt.n
-
-                ax.title = L"$\varphi^{(%$n)} - \Phi$"
-                hideydecorations!(ax)
-
-                bins = range(min(ϕ_Φ[end][S]..., -π), max(ϕ_Φ[end][S]..., π), plt.bin_mode == :fixed ? plt.nbins + 1 :
-                                                                              ceil(Int, (2sum(S))^(1 / 3) + 1))
-
-                @views hist!(ax, ϕ_Φ[n][S], bins=bins, scale_to=1, color=(col_out, alpha_out))
-                @views hist!(ax, ϕ_Φ[n][T[n+1]], bins=bins, scale_to=1, color=col_in)
-                #ax.xticks = ([-π, 0.0, π], ["-π", "0", "π"])
-                ax.xticklabelsize = label_pt
-            end
-
-            # --------------------------------------------------------------------
-
             if plt.val == :hist_Φ
                 n = plt.n
 
-                ax.title = n == 0 ? L"$\Phi$" : L"$\mathcal{P}\,\left[\,\Phi - \varphi^{(%$n)}\,\right]$"
+                ax.title = n == 0 ? L"$\Phi$" : L"$\Delta^{(%$n)}$"
                 hideydecorations!(ax)
 
                 bins = range(-π, π, plt.bin_mode == :fixed ? plt.nbins + 1 :
@@ -501,8 +785,8 @@ function phaser_plots(plots, PH, fitpar, fitopt;
             if plt.val == :hist_a∇Φ
                 n = plt.n
 
-                ax.title = n == 0 ? L"$\left|\,\nabla_%$j\,\Phi\,\right|$" :
-                           L"$\left|\,\nabla_%$j\,\Phi^{(%$n)}\,\right|$"
+                ax.title = n == 0 ? L"$\left|\,\mathcal{P}\,\nabla_%$j\,\Phi\,\right|$" :
+                           L"$\left|\,\mathcal{P}\,\nabla_%$j\,\Delta^{(%$n)}\,\right|$"
                 hideydecorations!(ax)
 
                 bins = range(0, π, plt.bin_mode == :fixed ? plt.nbins + 1 :
@@ -520,25 +804,6 @@ function phaser_plots(plots, PH, fitpar, fitopt;
 
             # --------------------------------------------------------------------
 
-            if plt.val == :χ2λ
-                n = plt.n
-
-                l = round(cal.PH.info[:balanced][:λ_opt][n], digits=3)
-                ax.title = L"$\chi^2\,(\lambda)$"
-                hideydecorations!(ax)
-
-                lbl = L"$\lambda^{(%$n)} = %$l$"
-                λs = PH.info[:balanced][:λs][n]
-                χ2s = PH.info[:balanced][:χ2s][n]
-                ax.xticklabelsize = label_pt
-                #ax.xlabelsize = label_pt
-                #ax.xlabel = L"$\lambda$"
-                scatterlines!(ax, λs, χ2s, label=lbl)
-                axislegend(ax)
-            end
-
-            # --------------------------------------------------------------------
-
             if letters
                 Label(fig[ir, i_col[ic], TopLeft()], string(maz[ic, ir]),
                     font=:bold,
@@ -548,221 +813,5 @@ function phaser_plots(plots, PH, fitpar, fitopt;
         end
     end
 
-    (fig, dax, ϕ_loc, pdff)
-end
-
-function fig_ismrm_challenge(; data_set, slice, save_fig)
-    println()
-    println("========================================================")
-    println("ISMRM data set ", data_set, ", slice ", slice)
-    println("========================================================")
-    println()
-
-    BLAS.set_num_threads(1)
-
-    # ISMRM challenge 2012 data sets:
-    oi = orient_ISMRM(data_set)
-
-    # 1: tibia, tra
-    # 2: upper body, cor
-    # 3: foot, sag
-    # 4: knee, sag
-    # 5: 2 lower legs, tra
-    # 6: 2 lower legs, tra
-    # 7: foot, sag
-    # 8: thorax, tra (strong gradient)
-    # 9: head, cor (strong gradient)
-    # 10: hand, cor
-    # 11: liver, lung, spleen, tra
-    # 12: liver, lung, tra
-    # 13: thorax, tra (motion artifacts)
-    # 14: head & shoulders, cor
-    # 15: breast, tra (strong gradient)
-    # 16: torso, sag
-    # 17: shoulder, cor
-
-    # set PHASER parameters
-    fitopt = BM.fitOpt()
-    fitopt.K = [6, 6]
-    fitopt.redundancy = Inf
-    fitopt.os_fac = [1.3]
-    fitopt.balance = 5
-    fitopt.rapid_balance = true
-    fitopt.multi_scale = false
-
-    ##
-
-    # apply PHASER
-    cal = ismrm_challenge(fitopt; data_set=data_set, slice=slice)
-
-    # show timing
-    println()
-    println(cal.bm.to)
-    println()
-
-    ϕ_loc = pdff = nothing
-
-    ##
-
-    n_grad, n_bal = cal.PH.n_grad, cal.PH.n_bal
-    n_max = n_grad + n_bal
-
-    _Φ = [(val=:Φ, cm=:romaO, n=n, colbar=true) for n in 0:n_max]
-    _Φ_red = [(val=:Φ_red, cm=:romaO, n=n, colbar=true) for n in 1:n_max]
-    _∇Φ = [(val=:∇Φ, cm=:managua, cm_rng=(-0.2, 0.2), n=n, colbar=true) for n in 0:n_max]
-    _a∇Φ = [(val=:a∇Φ, cm=:imola, cm_rng=(0, 1), n=n, colbar=true) for n in 0:n_max]
-    _∇Φ_red = [(val=:∇Φ_red, cm=:managua, cm_rng=(-0.2, 0.2), n=n, colbar=true) for n in 1:n_max]
-    _a∇Φ_red = [(val=:a∇Φ_red, cm=:imola, cm_rng=(0, 0.2), n=n, colbar=true) for n in 1:n_max]
-    _ϕ = [(val=:ϕ, rng_2π=false, cm=:roma, n=n, colbar=true) for n in 1:n_max]
-    _ϕ_loc = [(val=:ϕ_loc, rng_2π=false, cm=:roma, n=n, colbar=true) for n in 0:n_max]
-    _pdff = [(val=:pdff, cm=:imola, n=n, colbar=true) for n in 0:n_max]
-    _hist_Φ = [(val=:hist_Φ, n=n, nbins=100, bin_mode=:fixed) for n in 0:n_max]
-    _hist_ϕ_Φ = [(val=:hist_ϕ_Φ, n=n, nbins=100, bin_mode=:fixed) for n in 1:n_max]
-    _hist_a∇Φ = [(val=:hist_a∇Φ, n=n, nbins=50, bin_mode=:fixed) for n in 0:n_max]
-    _χ2λ = [(val=:χ2λ, n=n) for n in 1:n_bal]
-
-    plots = [_Φ[1] _hist_a∇Φ[1] _hist_Φ[1] _pdff[1];
-        _ϕ[n_grad] _Φ_red[n_grad] _hist_Φ[n_grad+1] _pdff[n_grad+1];
-        _ϕ[end] _Φ_red[end] _hist_Φ[end] _pdff[end]]
-
-    (fig, dax, ϕ_loc, pdff) = phaser_plots(plots, cal.PH, cal.fitpar, fitopt;
-        width_per_plot=280,
-        height_per_plot=210,
-        col_in=:blue, col_out=:red, alpha_out=0.3,
-        font_pt=12, label_pt=10,
-        slice=1,
-        j=1,
-        oi=oi,
-        letters=true,
-        ϕ_loc=ϕ_loc,
-        pdff=pdff,
-    )
-
-    display(fig)
-
-    ## save results
-
-    if save_fig
-        fig_name = "ismrm_ds_" * string(data_set) * "_sl_" * string(slice)
-        save(fig_name * ".svg", fig)
-        save(fig_name * ".eps", fig)
-        run(`epspdf $fig_name".eps"`)
-    end
-end
-
-function fig_cor_two_echoes_phaser(; save_fig)
-    println()
-    println("========================================================")
-    println("Two-echo data")
-    println("========================================================")
-    println()
-
-    BLAS.set_num_threads(1)
-
-    # read the HDF5 file
-    fid = h5open("data/two_echoes/20241024_171954_702_ImDataParamsBMRR_subspace2comp_wfi.h5", "r")
-    obj_data = read(fid["ImDataParams"])
-
-    signal = obj_data["signal"]
-    ss = size(signal)
-    data = zeros(ComplexF64, ss[3:5]..., ss[1])
-    for i in 1:2
-        data[:, :, :, i] .= signal[i, 1, :, :, :]
-    end
-
-    # the supplied mask is too inclusive
-    # the following choice is better but far from perfect..
-    # the choice is insofar important as 
-    S = abs.(data[:, :, :, 2]) .> 0.25 # 0.5
-
-    # echo times
-    TEs = 1000obj_data["TE_s"]  # the expected unit is [ms]
-
-    # field strength
-    B0 = Float64(attrs(fid["ImDataParams"])["fieldStrength_T"])
-
-    # fat model
-    ppm_fat = read(fid["AlgoParams"]["FatModel"]["freqs_ppm"])
-    ampl_fat = read(fid["AlgoParams"]["FatModel"]["relAmps"])
-
-    # close the HDF5 file
-    close(fid)
-
-    # scanner-dependent convention for the orientation of precession
-    precession = :counterclockwise
-
-    # set up GRE parameters
-    grePar = VP.modpar(BM.GREMultiEchoWF;
-        ts=TEs,
-        B0=B0,
-        ppm_fat=ppm_fat,
-        ampl_fat=ampl_fat,
-        precession=precession)
-
-    # generate instance of FitPar ...
-    fitpar = BM.fitPar(grePar, deepcopy(data), deepcopy(S))
-
-    # ... and of FitOpt
-    fitopt = BM.fitOpt()
-    fitopt.K = [3, 3, 3]
-    fitopt.R2s_rng = [0.0, 0.0]   # R2* ≡ 0 for two-echo GRE
-    fitopt.redundancy = 100
-    fitopt.subsampling = :random
-    fitopt.local_fit = false # we only want to reconstruct a single slice
-    fitopt.os_fac = [1.3]
-    fitopt.rng = MersenneTwister(42)
-    fitopt.balance = 2
-    fitopt.rapid_balance = true
-    fitopt.multi_scale = false
-
-    cal = BM.B0map!(fitpar, fitopt)
-
-    # show timing
-    println()
-    println(cal.to)
-    println()
-
-    # to reset diagnostics
-    ϕ_loc = pdff = nothing
-
-    ##
-
-    n_grad, n_bal = cal.PH.n_grad, cal.PH.n_bal
-    n_max = n_grad + n_bal
-
-    _Φ = [(val=:Φ, cm=:romaO, n=n, colbar=true) for n in 0:n_max]
-    _Φ_red = [(val=:Φ_red, cm=:romaO, n=n, colbar=true) for n in 1:n_max]
-    _ϕ = [(val=:ϕ, rng_2π=true, cm=:romaO, n=n, colbar=true) for n in 1:n_max]
-    _ϕ_loc = [(val=:ϕ_loc, rng_2π=true, cm=:romaO, n=n, colbar=true) for n in 0:n_max]
-    _pdff = [(val=:pdff, cm=:imola, n=n, colbar=true) for n in 0:n_max]
-    _hist_Φ = [(val=:hist_Φ, n=n, nbins=40, bin_mode=:rice) for n in 0:n_max]
-    _hist_a∇Φ = [(val=:hist_a∇Φ, n=n, nbins=40, bin_mode=:rice) for n in 0:n_max]
-
-    plots = [_Φ[1] _ϕ_loc[1] _hist_a∇Φ[1] _pdff[1];
-        _ϕ[n_grad] _ϕ_loc[n_grad+1] _hist_Φ[n_grad+1] _pdff[n_grad+1];
-        _ϕ[end] _ϕ_loc[end] _hist_Φ[end] _pdff[end]]
-
-    (fig, dax, ϕ_loc, pdff) = phaser_plots(plots, cal.PH, fitpar, fitopt;
-        width_per_plot=230,
-        height_per_plot=210,
-        col_in=:blue, col_out=:red, alpha_out=0.3,
-        font_pt=12, label_pt=8,
-        slice=64,
-        j=1,
-        oi=x -> rotl90(x[:, end:-1:1]),
-        letters=true,
-        ϕ_loc=ϕ_loc,
-        pdff=pdff,
-    )
-
-    display(fig)
-
-    ## save results
-
-    if save_fig
-        fig_name = "two_echo_cor"
-        save(fig_name * ".svg", fig)
-        save(fig_name * ".eps", fig)
-        run(`epspdf $fig_name".eps"`)
-    end
+    (fig, dax, Φn_R, pdff)
 end
