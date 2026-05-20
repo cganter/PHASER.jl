@@ -2,7 +2,7 @@
 
 Julia code, used to generate the figures in:
 
-Carl Ganter, Jonathan Stelter, Dimitrios Karampinos, Oliver Bieri.\
+Carl Ganter, Jonathan Stelter, Louis Peyratoux, Dimitrios C. Karampinos, Oliver Bieri.\
 Subspace-based phase regularization (PHASER) for rapid B0-mapping.\
 [Journal details follow]
 
