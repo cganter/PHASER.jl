@@ -13,9 +13,9 @@ Generate all figures in the article.
 function generate_figures(save_fig=false)
     res = Dict()
 
-    #res[:fig_1] = fig_ismrm_challenge(data_set=5, slice=1, save_fig=save_fig)
-    #res[:fig_2] = fig_ismrm_challenge(data_set=12, slice=2, save_fig=save_fig)
-    #isdir("data/three_echoes") && (res[:fig_3] = fig_cor_three_echoes_phaser(save_fig=save_fig))
+    res[:fig_1] = fig_ismrm_challenge(data_set=5, slice=1, save_fig=save_fig)
+    res[:fig_2] = fig_ismrm_challenge(data_set=12, slice=2, save_fig=save_fig)
+    isdir("data/three_echoes") && (res[:fig_3] = fig_cor_three_echoes_phaser(save_fig=save_fig))
     isdir("data/two_echoes") && (res[:fig_4] = fig_cor_two_echoes_phaser(save_fig=save_fig))
 
     res
@@ -778,6 +778,7 @@ function phaser_plots(plots, PH, fitpar, fitopt;
                 end
                 ax.xticks = ([-π, 0.0, π], ["-π", "0", "π"])
                 ax.xticklabelsize = label_pt
+                ax.limits = (-π, π, 0, nothing)
             end
 
             # --------------------------------------------------------------------
@@ -800,6 +801,7 @@ function phaser_plots(plots, PH, fitpar, fitopt;
                 end
                 ax.xticks = ([0, π], ["0", "π"])
                 ax.xticklabelsize = label_pt
+                ax.limits = (0, π, 0, nothing)
             end
 
             # --------------------------------------------------------------------

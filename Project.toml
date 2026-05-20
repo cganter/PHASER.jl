@@ -17,6 +17,7 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 VP4Optim = "8687cf0f-8f6d-4dd6-8e27-64e326ab5325"
 
 [compat]
+B0Map = "0.1.5"
 CairoMakie = "0.15.8"
 HDF5 = "0.17.2"
 LaTeXStrings = "1.4.0"
