@@ -6,7 +6,7 @@ Carl Ganter, Jonathan Stelter, Louis Peyratoux, Dimitrios C. Karampinos, Oliver 
 Subspace-based phase regularization (PHASER) for rapid B0-mapping.\
 [Journal details follow]
 
-[![DOI](https://zenodo.org/badge/1145872974.svg)](https://doi.org/10.5281/zenodo.20306776)
+[![zenodo](https://zenodo.org/badge/1145872974.svg)](https://doi.org/10.5281/zenodo.20306776)
 
 ## How to use
 
