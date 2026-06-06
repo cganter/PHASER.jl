@@ -15,8 +15,9 @@ function generate_figures(save_fig=false)
 
     res[:fig_1] = fig_ismrm_challenge(data_set=5, slice=1, save_fig=save_fig)
     res[:fig_2] = fig_ismrm_challenge(data_set=12, slice=2, save_fig=save_fig)
-    isdir("data/three_echoes") && (res[:fig_3] = fig_cor_three_echoes_phaser(save_fig=save_fig))
-    isdir("data/two_echoes") && (res[:fig_4] = fig_cor_two_echoes_phaser(save_fig=save_fig))
+    lambda_opt_plot(res; save_fig=save_fig)
+    isdir("data/three_echoes") && (res[:fig_4] = fig_cor_three_echoes_phaser(save_fig=save_fig))
+    isdir("data/two_echoes") && (res[:fig_5] = fig_cor_two_echoes_phaser(save_fig=save_fig))
 
     res
 end
@@ -104,6 +105,11 @@ function ismrm_challenge(
     return (; fitpar, PH, pdff_ref, datPar, data_set, bm, data)
 end
 
+"""
+    fig_ismrm_challenge(; data_set, slice, save_fig)
+
+Generate figures 1 and 2.
+"""
 function fig_ismrm_challenge(; data_set, slice, save_fig)
     println()
     println("========================================================")
@@ -139,7 +145,7 @@ function fig_ismrm_challenge(; data_set, slice, save_fig)
     fitopt.K = [5, 5]
     fitopt.redundancy = Inf
     fitopt.os_fac = [1.1]
-    fitopt.balance = 5
+    fitopt.balance = 20
     fitopt.rapid_balance = true
 
     ##
@@ -167,6 +173,21 @@ function fig_ismrm_challenge(; data_set, slice, save_fig)
         _ϕ[1] _Φn_R[2] _hist_Φ[2] _pdff[2];
         _ϕ[end] _Φn_R[end] _hist_Φ[end] _pdff[end]]
 
+    arrs = ()
+
+    if data_set == 12
+        arrs = (
+            ((1, 2), [5], [80], [15], [0], :white),
+            ((1, 2), [52], [80], [-15], [0], :white),
+            ((2, 2), [5], [80], [15], [0], :white),
+            ((2, 2), [52], [80], [-15], [0], :white),
+            ((2, 1), [5], [80], [15], [0], :white),
+            ((2, 1), [52], [80], [-15], [0], :white),
+            ((3, 1), [5], [80], [15], [0], :white),
+            ((3, 1), [52], [80], [-15], [0], :white),
+        )
+    end
+
     (fig, _, _, _) = phaser_plots(plots, cal.PH, cal.fitpar, fitopt;
         width_per_plot=280,
         height_per_plot=210,
@@ -176,6 +197,7 @@ function fig_ismrm_challenge(; data_set, slice, save_fig)
         j=1,
         oi=oi,
         letters=true,
+        arrs=arrs,
     )
 
     display(fig)
@@ -184,6 +206,73 @@ function fig_ismrm_challenge(; data_set, slice, save_fig)
 
     if save_fig
         fig_name = data_set == 5 ? "fig_1" : "fig_2"
+        save(fig_name * ".svg", fig)
+        save(fig_name * ".eps", fig)
+        run(`epspdf $fig_name".eps"`)
+    end
+
+    return (; fig, cal)
+end
+
+"""
+    lambda_opt_plot(res; save_fig=false)
+
+Generate figure 3.
+"""
+function lambda_opt_plot(res; save_fig=false)
+    ls = res[:fig_2].cal.PH.info[:balanced][:λs]
+    cs = res[:fig_2].cal.PH.info[:balanced][:χ2s]
+
+    pt = 4 / 3
+
+    fig = Figure(size=(450, 500), fontsize=12pt)
+
+    mi, ma = 0, 0.64
+
+    ax = Axis(fig[1, 1],
+        title=L"Calculate $\lambda^{(n)}$ via (21)",
+        titlesize=12pt,
+        xticks=([0.1, 0.2, 0.3, 0.4, 0.5, 0.6], ["0.1", "0.2", "0.3", "0.4", "0.5", "0.6"]),
+        xticklabelsvisible=false,
+        ygridvisible=false,
+        yticklabelsize=10pt,
+    )
+    li = lines!(ax, ls[1], cs[1], color=:lightgrey)
+    sc = scatter!(ax, ls[1], cs[1], color=:red)
+    axislegend(ax, [sc], [L"$n = 1$"], labelsize=12pt, position=:rb)
+    xlims!(ax, mi, ma)
+
+    ax = Axis(fig[2, 1],
+        yticklabelsize=10pt,
+        xticks=([0.1, 0.2, 0.3, 0.4, 0.5, 0.6], ["0.1", "0.2", "0.3", "0.4", "0.5", "0.6"]),
+        xticklabelsvisible=false,
+        ygridvisible=false,
+        xlabel="",
+    )
+    li = lines!(ax, ls[2], cs[2], color=:lightgrey)
+    sc = scatter!(ax, ls[2], cs[2], color=:green)
+    axislegend(ax, [sc], [L"$n = 2$"], labelsize=12pt, position=:rb)
+    xlims!(ax, mi, ma)
+
+    ax = Axis(fig[3, 1],
+        xlabel=L"$\lambda$",
+        xlabelsize=12pt,
+        xticks=([0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6], ["0", "0.1", "0.2", "0.3", "0.4", "0.5", "0.6"]),
+        xticklabelsize=10pt,
+        yticklabelsize=10pt,
+        ygridvisible=false,
+    )
+    li = lines!(ax, ls[end], cs[end], color=:lightgrey)
+    sc = scatter!(ax, ls[end], cs[end], color=:blue)
+    axislegend(ax, [sc], [L"$n = 15$"], labelsize=12pt, position=:rb)
+    xlims!(ax, mi, ma)
+
+    display(fig)
+    
+    ## save results
+
+    if save_fig
+        fig_name = "fig_3"
         save(fig_name * ".svg", fig)
         save(fig_name * ".eps", fig)
         run(`epspdf $fig_name".eps"`)
@@ -199,7 +288,7 @@ end
     slice=37,
 )
 
-TBW
+Generate figure 4.
 """
 function fig_cor_three_echoes_phaser(;
     save_fig=false,
@@ -248,7 +337,7 @@ function fig_cor_three_echoes_phaser(;
     fitopt = BM.fitOpt()
     fitopt.K = [5, 5, 5]
     fitopt.R2s_rng = [0.0, 5.0]   # R2* ≡ 0 for two-echo GRE
-    fitopt.redundancy = 42
+    fitopt.redundancy = 12
     fitopt.subsampling = :random
     fitopt.local_fit = false # we only want to reconstruct a single slice
     fitopt.os_fac = [1.1]
@@ -278,6 +367,15 @@ function fig_cor_three_echoes_phaser(;
         _ϕ[1] _Φn_R[2] _hist_Φ[2] _pdff[2];
         _ϕ[end] _Φn_R[end] _hist_Φ[end] _pdff[end]]
 
+    arrs = (
+        ((1, 2), [8], [14], [10], [12], :white),
+        ((1, 2), [232], [14], [-10], [12], :white),
+        ((1, 4), [8], [14], [10], [12], :white),
+        ((1, 4), [232], [14], [-10], [12], :white),
+        ((2, 4), [5], [90], [12], [-12], :red),
+        ((2, 4), [239], [86], [-12], [-12], :red),
+    )
+
     (fig, _, _, _) = phaser_plots(plots, cal.PH, fitpar, fitopt;
         width_per_plot=230,
         height_per_plot=210,
@@ -287,6 +385,7 @@ function fig_cor_three_echoes_phaser(;
         j=1,
         oi=x -> rotr90(x),
         letters=true,
+        arrs=arrs,
     )
 
     display(fig)
@@ -294,7 +393,7 @@ function fig_cor_three_echoes_phaser(;
     ## save results
 
     if save_fig
-        fig_name = "fig_3"
+        fig_name = "fig_4"
         save(fig_name * ".svg", fig)
         save(fig_name * ".eps", fig)
         run(`epspdf $fig_name".eps"`)
@@ -306,7 +405,7 @@ end
 """
     fig_cor_two_echoes_phaser(; save_fig)
 
-TBW
+Generate figure 5.
 """
 function fig_cor_two_echoes_phaser(; save_fig)
     println()
@@ -321,7 +420,7 @@ function fig_cor_two_echoes_phaser(; save_fig)
     fid = h5open("data/two_echoes/20241024_171954_702_ImDataParamsBMRR_subspace2comp_wfi.h5", "r")
     obj_data = read(fid["ImDataParams"])
 
-    signal = obj_data["signal"][:,:,:,1:end-1,:]
+    signal = obj_data["signal"][:, :, :, 1:end-1, :]
     ss = size(signal)
     data = zeros(ComplexF64, ss[3:5]..., ss[1])
     for i in 1:2
@@ -409,7 +508,7 @@ function fig_cor_two_echoes_phaser(; save_fig)
     ## save results
 
     if save_fig
-        fig_name = "fig_4"
+        fig_name = "fig_5"
         save(fig_name * ".svg", fig)
         save(fig_name * ".eps", fig)
         run(`epspdf $fig_name".eps"`)
@@ -431,7 +530,7 @@ end
     letters=false,
 )
 
-TBW
+Helper routine to create figures 1, 2, 4 and 5.
 """
 function phaser_plots(plots, PH, fitpar, fitopt;
     width_per_plot=200,
@@ -443,6 +542,7 @@ function phaser_plots(plots, PH, fitpar, fitopt;
     oi=x -> x,
     ϕns=nothing,
     letters=false,
+    arrs=(),
 )
     nrows, ncols = size(plots)
 
@@ -493,6 +593,12 @@ function phaser_plots(plots, PH, fitpar, fitopt;
     Φn_R = Vector{Any}(undef, nΦ + 1)
     Φϕ_R = Vector{Any}(undef, nΦ)
     pdff = Vector{Any}(undef, nΦ + 1)
+
+    fp0 = deepcopy(fp)
+    fo0 = deepcopy(fitopt)
+    fo0.R2s_rng = [0.0, 0.0]
+    fo0.optim = true
+    BM.local_fit!(fp0, fo0)
 
     BM.local_fit!(fp, fitopt)
     Φn_R[1] = deepcopy(fp.ϕ)
@@ -625,7 +731,6 @@ function phaser_plots(plots, PH, fitpar, fitopt;
 
                 heatmap!(ax,
                     oi(Φ_red),
-                    #oi(Φn_R[n+1]),
                     colormap=plt.cm,
                     colorrange=(-π, π),
                     nan_color=:black,
@@ -812,6 +917,15 @@ function phaser_plots(plots, PH, fitpar, fitopt;
                     padding=(0, -20, 5, 0),
                     halign=:right)
             end
+
+            # --------------------------------------------------------------------
+
+            for a in arrs
+                if a[1] == (ir, ic)
+                    arrows2d!(a[2], a[3], a[4], a[5], color=a[6])
+                end
+            end
+
         end
     end
 
