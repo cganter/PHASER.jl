@@ -98,7 +98,7 @@ function ismrm_challenge(
     bm = BM.B0map!(fitpar, fitopt)
     PH = bm.PH
 
-    # reference PDFF
+    # reference FF
     pdff_ref = datPar["ref"][:, :, slice]
 
     # return results
@@ -165,7 +165,11 @@ function fig_ismrm_challenge(; data_set, slice, save_fig)
 
     _ϕ = [(val=:ϕ, rng_2π=false, cm=:roma, n=n, colbar=true) for n in 1:n_max]
     _Φn_R = [(val=:Φn_R, rng_2π=true, cm=:romaO, n=n, colbar=true) for n in 0:n_max]
+    _Tn_S = [(val=:Tn_S, cm=[:blue, :red], n=n) for n in 0:n_max]
+    _Tjn_S = [(val=:Tjn_S, cm=[:blue, :red], n=n) for n in 0:n_max]
+    _Tj0_S = [(val=:Tj0_S, cm=[:blue, :red], j=j) for j in (1, 2)]
     _pdff = [(val=:pdff, cm=:imola, n=n, colbar=true) for n in 0:n_max]
+    _pdff_nb = [(val=:pdff, cm=:imola, n=n, colbar=false) for n in 0:n_max]
     _hist_Φ = [(val=:hist_Φ, n=n, nbins=100, bin_mode=:fixed) for n in 0:n_max]
     _hist_a∇Φ = [(val=:hist_a∇Φ, n=n, nbins=50, bin_mode=:fixed) for n in 0:n_max]
 
@@ -186,6 +190,33 @@ function fig_ismrm_challenge(; data_set, slice, save_fig)
             ((3, 1), [5], [80], [15], [0], :white),
             ((3, 1), [52], [80], [-15], [0], :white),
         )
+
+        plots_ = [
+            _Φn_R[3] _hist_Φ[3] _Tn_S[3] _Tj0_S[1];
+            _Φn_R[4] _hist_Φ[4] _Tn_S[4] _Tj0_S[2];
+            _Φn_R[end] _hist_Φ[end] _Tn_S[end] _pdff_nb[1]]
+        
+        (fig_, _, _, _) = phaser_plots(plots_, cal.PH, cal.fitpar, fitopt;
+            width_per_plot=280,
+            height_per_plot=210,
+            col_in=:blue, col_out=:red, alpha_out=0.3,
+            font_pt=12, label_pt=10,
+            slice=1,
+            j=1,
+            oi=oi,
+            letters=true,
+        )
+
+        display(fig_)
+        
+        ## save results
+
+        if save_fig
+            fig_name = "fig_3"
+            save(fig_name * ".svg", fig_)
+            save(fig_name * ".eps", fig_)
+            run(`epspdf $fig_name".eps"`)
+        end
     end
 
     (fig, _, _, _) = phaser_plots(plots, cal.PH, cal.fitpar, fitopt;
@@ -268,11 +299,11 @@ function lambda_opt_plot(res; save_fig=false)
     xlims!(ax, mi, ma)
 
     display(fig)
-    
+
     ## save results
 
     if save_fig
-        fig_name = "fig_3"
+        fig_name = "fig_4"
         save(fig_name * ".svg", fig)
         save(fig_name * ".eps", fig)
         run(`epspdf $fig_name".eps"`)
@@ -393,7 +424,7 @@ function fig_cor_three_echoes_phaser(;
     ## save results
 
     if save_fig
-        fig_name = "fig_4"
+        fig_name = "fig_5"
         save(fig_name * ".svg", fig)
         save(fig_name * ".eps", fig)
         run(`epspdf $fig_name".eps"`)
@@ -508,7 +539,7 @@ function fig_cor_two_echoes_phaser(; save_fig)
     ## save results
 
     if save_fig
-        fig_name = "fig_5"
+        fig_name = "fig_6"
         save(fig_name * ".svg", fig)
         save(fig_name * ".eps", fig)
         run(`epspdf $fig_name".eps"`)
@@ -815,6 +846,67 @@ function phaser_plots(plots, PH, fitpar, fitopt;
 
             # --------------------------------------------------------------------
 
+            if plt.val == :Tn_S
+                n = plt.n
+
+                ax.title = L"$T^{(%$n)}$"
+                hidedecorations!(ax)
+
+                mat = fill(NaN, size(S))
+                mat[S] .= 1
+                noT = S .& (!).(T[n+1])
+                mat[noT] .= 2
+
+                heatmap!(ax,
+                    oi(mat),
+                    colormap=plt.cm,
+                    nan_color=:black,
+                )
+            end
+
+            # --------------------------------------------------------------------
+
+            if plt.val == :Tjn_S
+                n = plt.n
+
+                ax.title = L"$T_{%$j}^{(%$n)}$"
+                hidedecorations!(ax)
+
+                mat = fill(NaN, size(S))
+                mat[Sj] .= 1
+                noT = Sj .& (!).(Tj[n+1])
+                mat[noT] .= 2
+
+                heatmap!(ax,
+                    oi(mat),
+                    colormap=plt.cm,
+                    nan_color=:black,
+                )
+            end
+
+            # --------------------------------------------------------------------
+
+            if plt.val == :Tj0_S
+                j_ = plt.j
+                ax.title = L"$T_{%$j_}^{(0)}$"
+                hidedecorations!(ax)
+
+                mat = fill(NaN, size(S))
+                Sj_ = @views PH.Sj[j_][:, :, slice]
+                mat[Sj_] .= 1
+                Tj_ = @views PH.Tj[1][j_][:, :, slice]
+                noT = Sj_ .& (!).(Tj_)
+                mat[noT] .= 2
+
+                heatmap!(ax,
+                    oi(mat),
+                    colormap=plt.cm,
+                    nan_color=:black,
+                )
+            end
+
+            # --------------------------------------------------------------------
+
             if plt.val == :Φϕ_R
                 n = plt.n
 
@@ -845,7 +937,7 @@ function phaser_plots(plots, PH, fitpar, fitopt;
             if plt.val == :pdff
                 n = plt.n
 
-                ax.title = n == 0 ? L"PDFF: $\Phi$" : L"PDFF: $\Phi^{(%$n)}$"
+                ax.title = n == 0 ? L"FF: $\Phi$" : L"FF: $\Phi^{(%$n)}$"
                 hidedecorations!(ax)
 
                 heatmap!(ax,
