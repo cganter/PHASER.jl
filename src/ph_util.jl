@@ -13,8 +13,8 @@ Generate all figures in the article.
 function generate_figures(save_fig=false)
     res = Dict()
 
-    res[:fig_1] = fig_ismrm_challenge(data_set=5, slice=1, save_fig=save_fig)
-    res[:fig_2] = fig_ismrm_challenge(data_set=12, slice=2, save_fig=save_fig)
+    #res[:fig_1] = fig_ismrm_challenge(data_set=5, slice=1, save_fig=save_fig)
+    res[:fig_1] = fig_ismrm_challenge(data_set=12, slice=2, save_fig=save_fig)
     lambda_opt_plot(res; save_fig=save_fig)
     isdir("data/three_echoes") && (res[:fig_4] = fig_cor_three_echoes_phaser(save_fig=save_fig))
     isdir("data/two_echoes") && (res[:fig_5] = fig_cor_two_echoes_phaser(save_fig=save_fig))
@@ -193,7 +193,7 @@ function fig_ismrm_challenge(; data_set, slice, save_fig)
 
         plots_ = [
             _Φn_R[3] _hist_Φ[3] _Tn_S[3] _Tj0_S[1];
-            _Φn_R[4] _hist_Φ[4] _Tn_S[4] _Tj0_S[2];
+            #_Φn_R[4] _hist_Φ[4] _Tn_S[4] _Tj0_S[2];
             _Φn_R[end] _hist_Φ[end] _Tn_S[end] _pdff_nb[1]]
         
         (fig_, _, _, _) = phaser_plots(plots_, cal.PH, cal.fitpar, fitopt;
@@ -212,7 +212,7 @@ function fig_ismrm_challenge(; data_set, slice, save_fig)
         ## save results
 
         if save_fig
-            fig_name = "fig_3"
+            fig_name = "fig_2"
             save(fig_name * ".svg", fig_)
             save(fig_name * ".eps", fig_)
             run(`epspdf $fig_name".eps"`)
@@ -236,7 +236,8 @@ function fig_ismrm_challenge(; data_set, slice, save_fig)
     ## save results
 
     if save_fig
-        fig_name = data_set == 5 ? "fig_1" : "fig_2"
+        #fig_name = data_set == 5 ? "fig_1" : "fig_2"
+        fig_name = "fig_1"
         save(fig_name * ".svg", fig)
         save(fig_name * ".eps", fig)
         run(`epspdf $fig_name".eps"`)
@@ -251,8 +252,8 @@ end
 Generate figure 3.
 """
 function lambda_opt_plot(res; save_fig=false)
-    ls = res[:fig_2].cal.PH.info[:balanced][:λs]
-    cs = res[:fig_2].cal.PH.info[:balanced][:χ2s]
+    ls = res[:fig_1].cal.PH.info[:balanced][:λs]
+    cs = res[:fig_1].cal.PH.info[:balanced][:χ2s]
 
     pt = 4 / 3
 
@@ -303,7 +304,7 @@ function lambda_opt_plot(res; save_fig=false)
     ## save results
 
     if save_fig
-        fig_name = "fig_4"
+        fig_name = "fig_3"
         save(fig_name * ".svg", fig)
         save(fig_name * ".eps", fig)
         run(`epspdf $fig_name".eps"`)
@@ -395,7 +396,7 @@ function fig_cor_three_echoes_phaser(;
     _max_abs_data = (val=:max_abs_data, cm=:batlow, colbar=true)
 
     plots = [_hist_a∇Φ[1] _Φn_R[1] _hist_Φ[1] _pdff[1];
-        _ϕ[1] _Φn_R[2] _hist_Φ[2] _pdff[2];
+        #_ϕ[1] _Φn_R[2] _hist_Φ[2] _pdff[2];
         _ϕ[end] _Φn_R[end] _hist_Φ[end] _pdff[end]]
 
     arrs = (
@@ -403,8 +404,8 @@ function fig_cor_three_echoes_phaser(;
         ((1, 2), [232], [14], [-10], [12], :white),
         ((1, 4), [8], [14], [10], [12], :white),
         ((1, 4), [232], [14], [-10], [12], :white),
-        ((2, 4), [5], [90], [12], [-12], :red),
-        ((2, 4), [239], [86], [-12], [-12], :red),
+        #((2, 4), [5], [90], [12], [-12], :red),
+        #((2, 4), [239], [86], [-12], [-12], :red),
     )
 
     (fig, _, _, _) = phaser_plots(plots, cal.PH, fitpar, fitopt;
@@ -424,7 +425,7 @@ function fig_cor_three_echoes_phaser(;
     ## save results
 
     if save_fig
-        fig_name = "fig_5"
+        fig_name = "fig_4"
         save(fig_name * ".svg", fig)
         save(fig_name * ".eps", fig)
         run(`epspdf $fig_name".eps"`)
@@ -520,7 +521,7 @@ function fig_cor_two_echoes_phaser(; save_fig)
     _hist_a∇Φ = [(val=:hist_a∇Φ, n=n, nbins=40, bin_mode=:rice) for n in 0:n_max]
 
     plots = [_hist_a∇Φ[1] _Φn_R[1] _hist_Φ[1] _pdff[1];
-        _ϕ[1] _Φϕ_R[1] _hist_Φ[2] _pdff[2];
+        #_ϕ[1] _Φϕ_R[1] _hist_Φ[2] _pdff[2];
         _ϕ[end] _Φϕ_R[end] _hist_Φ[end] _pdff[end]]
 
     (fig, _, _, _) = phaser_plots(plots, cal.PH, fitpar, fitopt;
@@ -539,7 +540,7 @@ function fig_cor_two_echoes_phaser(; save_fig)
     ## save results
 
     if save_fig
-        fig_name = "fig_6"
+        fig_name = "fig_5"
         save(fig_name * ".svg", fig)
         save(fig_name * ".eps", fig)
         run(`epspdf $fig_name".eps"`)
@@ -579,7 +580,7 @@ function phaser_plots(plots, PH, fitpar, fitopt;
 
     println("sum(S) = ", sum(PH.S))
     println("sum(R) = ", sum(fitpar.S))
-    println("sum(S) / sum(R) = ", round(100sum(PH.S) / sum(fitpar.S), digits=1))
+    println("sum(S) / sum(R) = ", sum(PH.S) / sum(fitpar.S))
     println("size(S) = ", size(PH.S))
 
     S = @views PH.S[:, :, slice]
