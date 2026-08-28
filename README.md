@@ -21,7 +21,7 @@ julia> PH.generate_movies()
 
 ## Data availability
 
-The 3D data have not been uploaded to the repository, but can provided upon reasonable request.
+The 3D data have not been uploaded to the repository, but can be provided upon reasonable request.
 
 ## Remark
 
