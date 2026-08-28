@@ -3,6 +3,7 @@
 *.jl.mem
 *.zip
 *.pdf
+*.mp4
 *.ps
 *.eps
 *.h5

@@ -11,11 +11,12 @@ Subspace-based phase regularization (PHASER) for rapid B0-mapping.\
 ## How to use
 
 - Clone, activate (and instantiate) the repository at https://github.com/cganter/PHASER.jl.
-- To generate the figures, switch to the repo's main directory and issue the commands:
+- To generate the figures and movies, switch to the repo's main directory and issue the commands:
 
 ```julia
-julia> using PHASER
-julia> PHASER.generate_figures()
+julia> import PHASER as PH
+julia> PH.generate_figures()
+julia> PH.generate_movies()
 ```
 
 ## Data availability

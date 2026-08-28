@@ -5,7 +5,9 @@ authors = ["Carl Ganter <cganter@tum.de>"]
 
 [deps]
 B0Map = "26d27508-09c5-44d0-86be-f4e37b03a7e6"
+CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 HDF5 = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -17,8 +19,10 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 VP4Optim = "8687cf0f-8f6d-4dd6-8e27-64e326ab5325"
 
 [compat]
-B0Map = "0.1.5"
+B0Map = "0.1.7"
+CSV = "0.10.16"
 CairoMakie = "0.15.8"
+GLMakie = "0.13.13"
 HDF5 = "0.17.2"
 LaTeXStrings = "1.4.0"
 LinearAlgebra = "1.12.0"
