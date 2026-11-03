@@ -37,15 +37,15 @@ function generate_figures()
     res = Dict()
 
     intro_figures(res) # figures 1 - 8
-    
-    sim = calc_simulation()
-    res[:figs_simul] = simulation_figures(sim, "fig_9", "fig_S1")
-    
-    fig_ismrm_challenge("fig_10", dataset=5, slice=1, n_final = 2);
 
-    isdir("data/three_echoes") && (res[:fig_11] = fig_cor_three_echoes_phaser("fig_11"))
-    
-    isdir("data/two_echoes") && (res[:fig_12] = fig_cor_two_echoes_phaser("fig_12"))
+    sim = calc_simulation()
+    res[:figs_simul] = simulation_figures(sim, "fig_9", "fig_S1", "fig_S2")
+
+    fig_ismrm_challenge(nothing, "fig_10", dataset=5, slice=1)
+
+    isdir("data/three_echoes") && (res[:fig_11] = fig_cor_three_echoes_phaser(nothing, "fig_11"))
+
+    isdir("data/two_echoes") && (res[:fig_12] = fig_cor_two_echoes_phaser(nothing, "fig_12"))
 
     res
 end
@@ -58,7 +58,7 @@ Generate movies for dataset 12
 function generate_movies()
     for i in 1:3
         cal = calc_ismrm_challenge(12, i)
-        
+
         grad_movie(cal, "dataset_12_slice_" * string(i) * ".mp4")
     end
 end
@@ -305,9 +305,6 @@ function fig_ML(cal, fig_name=""; rc=(104, 179))
     println("========================================================")
     println()
 
-    n_bal = cal.PH.n_bal
-    n_max = n_bal + 1
-
     kwargs1 = (; markersize=10, marker=:diamond, strokewidth=2, color=(:red, 0.0), strokecolor=:yellow)
     kwargs2 = (; markersize=10, marker=:diamond, strokewidth=2, color=(:red, 0.0), strokecolor=:red)
 
@@ -339,7 +336,7 @@ function fig_ML(cal, fig_name=""; rc=(104, 179))
 
     phaser_plots(plots, fig, cal.PH, cal.fitpar, cal.fitopt;
         col_in=:blue, col_out=:red, #alpha_out=0.3,
-        font_pt=12, label_pt=10,
+        label_pt=10,
         slice=1,
         j=1,
         oi=cal.oi,
@@ -373,9 +370,6 @@ function fig_ML_histo(cal, fig_name="")
 
     CairoMakie.activate!()
 
-    n_bal = cal.PH.n_bal
-    n_max = n_bal + 1
-
     _∇Δ = (val=:∇Δ, rng_2π=true, cm=:roma, n=0, colbar=true)
     _hist_Δ = (val=:hist_Δ, n=0, nbins=100, Phi=true, bin_mode=:fixed)
     _hist_a∇Δ = (val=:hist_a∇Δ, n=0, nbins=50, bin_mode=:fixed)
@@ -395,7 +389,7 @@ function fig_ML_histo(cal, fig_name="")
 
     phaser_plots(plots, fig, cal.PH, cal.fitpar, cal.fitopt;
         col_in=:blue, col_out=:red,
-        font_pt=12, label_pt=10,
+        label_pt=10,
         slice=1,
         j=1,
         oi=cal.oi,
@@ -453,7 +447,7 @@ function fig_grad(cal, fig_name=""; n=1)
 
     phaser_plots(plots, fig, cal.PH, cal.fitpar, cal.fitopt;
         col_in=:blue, col_out=:red, #alpha_out=0.3,
-        font_pt=12, label_pt=10,
+        label_pt=10,
         slice=1,
         j=1,
         oi=cal.oi,
@@ -512,7 +506,7 @@ function fig_grad_histo(cal, fig_name=""; n=1)
 
     phaser_plots(plots, fig, cal.PH, cal.fitpar, cal.fitopt;
         col_in=:blue, col_out=:red, #alpha_out=1.0, #0.3,
-        font_pt=12, label_pt=10,
+        label_pt=10,
         slice=1,
         j=1,
         oi=cal.oi,
@@ -533,11 +527,11 @@ function fig_grad_histo(cal, fig_name=""; n=1)
 end
 
 """
-    fig_ismrm_challenge(fig_name=""; dataset, slice, n_final=-1)
+    fig_ismrm_challenge(cal=nothing, fig_name=""; dataset, slice, plts=[1, -1])
 
 Generate figures 1 and 2.
 """
-function fig_ismrm_challenge(fig_name=""; dataset, slice, n_final=-1)
+function fig_ismrm_challenge(cal=nothing, fig_name=""; dataset, slice, plts=[1, -1])
     println()
     println("========================================================")
     println("generate " * fig_name)
@@ -546,19 +540,18 @@ function fig_ismrm_challenge(fig_name=""; dataset, slice, n_final=-1)
 
     CairoMakie.activate!()
 
-    cal = calc_ismrm_challenge(dataset, slice)
-
-    n_bal = cal.PH.n_bal
-    n_max = n_bal + 1
+    cal === nothing && (cal = calc_ismrm_challenge(dataset, slice))
 
     _Φϕ = n -> (val=:Φϕ, rng_2π=false, rng_ϕ=:Φϕ, cm=:roma, n=n, colbar=true)
     _pdff = n -> (val=:pdff, cm=:imola, n=n, colbar=true)
     _Δ_R = n -> (val=:Δ_R, rng_2π=true, cm=:roma, n=n, colbar=true)
     _hist_Δ = n -> (val=:hist_Δ, n=n, nbins=100, bin_mode=:fixed)
 
-    plots = [_Δ_R(0) _hist_Δ(0) _pdff(0);
-        _Φϕ(1) _hist_Δ(1) _pdff(1);
-        _Φϕ(n_final) _hist_Δ(n_final) _pdff(n_final)]
+    plots = [_Δ_R(0) _hist_Δ(0) _pdff(0)]
+
+    for pidx in plts
+        plots = vcat(plots, [_Φϕ(pidx) _hist_Δ(pidx) _pdff(pidx)])
+    end
 
     arrs = ()
 
@@ -571,7 +564,7 @@ function fig_ismrm_challenge(fig_name=""; dataset, slice, n_final=-1)
 
     phaser_plots(plots, fig, cal.PH, cal.fitpar, cal.fitopt;
         col_in=:blue, col_out=:red, #alpha_out=0.3,
-        font_pt=12, label_pt=10,
+        label_pt=10,
         slice=1,
         j=1,
         oi=cal.oi,
@@ -592,26 +585,32 @@ function fig_ismrm_challenge(fig_name=""; dataset, slice, n_final=-1)
 end
 
 """
-    fig_cor_three_echoes_phaser(fig_name="";
-    thresh=70, 
-    slice=37,
-    max_bal=2,
-)
-
-Generate figure 11 (three-echo 3D scan)
-"""
-function fig_cor_three_echoes_phaser(fig_name="";
+    calc_cor_three_echoes_phaser(;
     thresh=70,
-    slice=37,
     max_bal=2,
+    redundancy=42,
+    subsampling=:fibonacci,
+    K=[5, 5, 5],
+    os_fac=[1.1],
+    echoes=[1, 2, 3],
+)
+
+PHASER for 3D three echo dataset.
+"""
+function calc_cor_three_echoes_phaser(;
+    thresh=70,
+    max_bal=2,
+    redundancy=42,
+    subsampling=:fibonacci,
+    K=[5, 5, 5],
+    os_fac=[1.1],
+    echoes=[1, 2, 3],
 )
     println()
     println("========================================================")
-    println("generate " * fig_name, ": 3D three-echo data")
+    println("PHASER for 3D three-echo data")
     println("========================================================")
     println()
-
-    CairoMakie.activate!()
 
     BLAS.set_num_threads(1)
 
@@ -619,8 +618,7 @@ function fig_cor_three_echoes_phaser(fig_name="";
 
     datPar = matread(file_str)["ImDataParams"]
 
-    TEs = 1000.0 * datPar["TE_s"][:]
-    @show TEs
+    TEs = 1000.0 * datPar["TE_s"][echoes]
     nTE = length(TEs)
     B0 = datPar["fieldStrength_T"]
     precession = (datPar["precessionIsClockwise"] != 1.0) ? :clockwise : :counterclockwise
@@ -628,7 +626,7 @@ function fig_cor_three_echoes_phaser(fig_name="";
     # read data and mask
     Nρ = size(datPar["signal"])[1:3]
     data = zeros(ComplexF64, Nρ..., nTE)
-    copy!(data, datPar["signal"])
+    copy!(data, datPar["signal"][:, :, :, echoes])
     S = reshape(maximum(abs.(data), dims=4) .> thresh, Nρ...)
 
     # 10-peak bone marrow model
@@ -648,45 +646,108 @@ function fig_cor_three_echoes_phaser(fig_name="";
 
     # ... and of FitOpt
     fitopt = BM.fitOpt()
-    fitopt.K = [5, 5, 5]
+    fitopt.K = K
     fitopt.R2s_rng = [0.0, 5.0]   # larger R2* to locally fit inhomogeneous B0
-    fitopt.redundancy = 42
-    fitopt.subsampling = :random
+    fitopt.redundancy = redundancy
+    fitopt.subsampling = subsampling
     fitopt.local_fit = false # we only want to reconstruct a single slice
-    fitopt.os_fac = [1.1]
+    fitopt.os_fac = os_fac
     fitopt.rng = MersenneTwister(42)
     fitopt.balance = max_bal
     fitopt.rapid_balance = true
 
-    cal = BM.B0map!(fitpar, fitopt)
-
-    println("Number of free (real) parameters: ", BM.Nfree(cal.bs))
+    bm = BM.B0map!(fitpar, fitopt)
 
     # show timing
     println()
-    println(cal.to)
+    println(bm.to)
     println()
 
-    _Φϕ = n -> (val=:Φϕ, rng_2π=false, rng_ϕ=:Φϕ, cm=:roma, n=n, colbar=true)
+    (; bm, fitpar, fitopt)
+end
+
+"""
+    fig_cor_three_echoes_phaser(cal=nothing, fig_name="";
+    thresh=70,
+    slice=37,
+    max_bal=3,
+    redundancy=42,
+    show_arrs=true,
+    two_pi=false,
+    subsampling=:fibonacci,
+    K=[5, 5, 5],
+    os_fac=[1.1],
+    plts=[-1],
+    show_subsampling=false,
+)
+
+Generate figure 11 (three-echo 3D scan)
+"""
+function fig_cor_three_echoes_phaser(cal=nothing, fig_name="";
+    thresh=70,
+    slice=37,
+    max_bal=3,
+    redundancy=42,
+    show_arrs=true,
+    two_pi=false,
+    subsampling=:fibonacci,
+    K=[5, 5, 5],
+    os_fac=[1.1],
+    plts=[-1],
+    show_subsampling=false,
+)
+
+    cal === nothing && (cal = calc_cor_three_echoes_phaser(;
+        thresh=thresh,
+        max_bal=max_bal,
+        redundancy=redundancy,
+        subsampling=subsampling,
+        K=K,
+        os_fac=os_fac,
+    ))
+
+    println()
+    println("========================================================")
+    println("generate " * fig_name, ": 3D three-echo data")
+    println("========================================================")
+    println()
+
+    CairoMakie.activate!()
+
+    println("Number of free (real) parameters: ", BM.Nfree(cal.bm.bs))
+
+    if two_pi
+        _Φϕ = n -> (val=:Φϕ, rng_2π=true, cm=:roma, n=n, colbar=true)
+    else
+        _Φϕ = n -> (val=:Φϕ, rng_2π=false, rng_ϕ=:Φϕ, cm=:roma, n=n, colbar=true)
+    end
     _pdff = n -> (val=:pdff, cm=:imola, n=n, colbar=true)
     _Δ_R = n -> (val=:Δ_R, rng_2π=true, cm=:roma, n=n, colbar=true)
+    _Δ_R_susa = n -> (val=:Δ_R, rng_2π=true, cm=:roma, n=n, colbar=false, show_susa=true)
     _hist_Δ = n -> (val=:hist_Δ, n=n, nbins=100, bin_mode=:fixed)
 
-    plots = [
-        _Δ_R(0) _hist_Δ(0) _pdff(0);
-        _Φϕ(-1) _hist_Δ(-1) _pdff(-1)
-    ]
+    if show_subsampling
+        plots = [_Δ_R(0) _Δ_R_susa(0) _pdff(0)]
+    else
+        plots = [_Δ_R(0) _hist_Δ(0) _pdff(0)]
+    end
 
-    arrs = (
+    for pidx in plts
+        plots = vcat(plots, [_Φϕ(pidx) _hist_Δ(pidx) _pdff(pidx)])
+    end
+
+    arrs = show_arrs ? (
         ((1, 1), [8], [14], [10], [12], :white),
         ((1, 1), [232], [14], [-10], [12], :white),
         ((1, 3), [8], [14], [10], [12], :white),
         ((1, 3), [232], [14], [-10], [12], :white),
+        ((1, 3), [138], [65], [-15], [0], :red),
+        ((1, 3), [146], [48], [-15], [0], :red),
         ((2, 1), [8], [14], [10], [12], :white),
         ((2, 1), [232], [14], [-10], [12], :white),
         ((2, 3), [8], [14], [10], [12], :white),
         ((2, 3), [232], [14], [-10], [12], :white),
-    )
+    ) : ()
 
     fig = make_phaser_fig(plots;
         width_per_plot=230,
@@ -695,9 +756,9 @@ function fig_cor_three_echoes_phaser(fig_name="";
         movie=false,
     )
 
-    phaser_plots(plots, fig, cal.PH, fitpar, fitopt;
+    phaser_plots(plots, fig, cal.bm.PH, cal.fitpar, cal.fitopt;
         col_in=:blue, col_out=:red, #alpha_out=0.3,
-        font_pt=12, label_pt=10,
+        label_pt=10,
         slice=slice,
         j=1,
         oi=x -> rotr90(x),
@@ -718,18 +779,30 @@ function fig_cor_three_echoes_phaser(fig_name="";
 end
 
 """
-    fig_cor_two_echoes_phaser(; save_fig)
+    calc_cor_two_echoes_phaser(;
+    thresh=0.25,
+    max_bal=2,
+    redundancy=42, #42
+    subsampling=:fibonacci,
+    K=[5, 5, 5],
+    os_fac=[1.1],
+)
 
 Generate figure 12 (two-echo 3D scan)
 """
-function fig_cor_two_echoes_phaser(fig_name=""; max_bal=2)
+function calc_cor_two_echoes_phaser(;
+    thresh=0.25,
+    max_bal=2,
+    redundancy=42, 
+    subsampling=:fibonacci,
+    K=[5, 5, 5],
+    os_fac=[1.1],
+)
     println()
     println("========================================================")
-    println("generate " * fig_name, ": 3D two-echo data")
+    println("PHASER for 3D two-echo data")
     println("========================================================")
     println()
-
-    CairoMakie.activate!()
 
     BLAS.set_num_threads(1)
 
@@ -747,7 +820,7 @@ function fig_cor_two_echoes_phaser(fig_name=""; max_bal=2)
     # the supplied mask is too inclusive
     # the following choice is better but far from perfect..
     # the choice is insofar important as 
-    S = abs.(data[:, :, :, 2]) .> 0.25 # 0.5
+    S = abs.(data[:, :, :, 2]) .> thresh # 0.5
 
     # echo times
     TEs = 1000obj_data["TE_s"]  # the expected unit is [ms]
@@ -765,7 +838,7 @@ function fig_cor_two_echoes_phaser(fig_name=""; max_bal=2)
     # scanner-dependent convention for the orientation of precession
     precession = :counterclockwise
 
-    # set up GRE parameters
+    # set up GRE parameter
     grePar = VP.modpar(BM.GREMultiEchoWF;
         ts=TEs,
         B0=B0,
@@ -778,34 +851,78 @@ function fig_cor_two_echoes_phaser(fig_name=""; max_bal=2)
 
     # ... and of FitOpt
     fitopt = BM.fitOpt()
-    fitopt.K = [5, 5, 5]
+    fitopt.K = K
     fitopt.R2s_rng = [0.0, 0.0]   # R2* ≡ 0 for two-echo GRE
-    fitopt.redundancy = 42
-    fitopt.subsampling = :random
+    fitopt.redundancy = redundancy
+    fitopt.subsampling = subsampling
     fitopt.local_fit = false # we only want to reconstruct a single slice
-    fitopt.os_fac = [1.1]
-    fitopt.rng = MersenneTwister(42)
+    fitopt.os_fac = os_fac
+    fitopt.rng = MersenneTwister(42) #2
     fitopt.balance = max_bal
     fitopt.rapid_balance = true
 
-    cal = BM.B0map!(fitpar, fitopt)
+    bm = BM.B0map!(fitpar, fitopt)
 
-    println("Number of free (real) parameters: ", BM.Nfree(cal.bs))
+    println("Number of free (real) parameters: ", BM.Nfree(bm.bs))
 
     # show timing
     println()
-    println(cal.to)
+    println(bm.to)
     println()
+
+    (; bm, fitpar, fitopt)
+end
+
+"""
+    fig_cor_two_echoes_phaser(cal=nothing, fig_name="";
+    thresh=0.25,
+    max_bal=2,
+    redundancy=42,
+    subsampling=:fibonacci,
+    K=[5, 5, 5],
+    os_fac=[1.1],
+    slice=64,
+    plts=[-1],
+)
+
+Generate figure 12 (two-echo 3D scan)
+"""
+function fig_cor_two_echoes_phaser(cal=nothing, fig_name="";
+    thresh=0.25,
+    max_bal=2,
+    redundancy=42,
+    subsampling=:fibonacci,
+    K=[5, 5, 5],
+    os_fac=[1.1],
+    slice=64,
+    plts=[-1],
+)
+    cal === nothing && (cal = calc_cor_two_echoes_phaser(;
+        thresh=thresh,
+        max_bal=max_bal,
+        redundancy=redundancy,
+        subsampling=subsampling,
+        K=K,
+        os_fac=os_fac))
+
+    println()
+    println("========================================================")
+    println("generate " * fig_name, ": 3D two-echo data")
+    println("========================================================")
+    println()
+
+    CairoMakie.activate!()
 
     _Φϕ = n -> (val=:Φϕ, rng_2π=true, cm=:roma, n=n, colbar=true)
     _pdff = n -> (val=:pdff, cm=:imola, n=n, colbar=true)
     _Δ_R = n -> (val=:Δ_R, rng_2π=true, cm=:roma, n=n, colbar=true)
     _hist_Δ = n -> (val=:hist_Δ, n=n, nbins=100, bin_mode=:fixed)
 
-    plots = [
-        _Δ_R(0) _hist_Δ(0) _pdff(0);
-        _Φϕ(-1) _hist_Δ(-1) _pdff(-1)
-    ]
+    plots = [_Δ_R(0) _hist_Δ(0) _pdff(0)]
+
+    for pidx in plts
+        plots = vcat(plots, [_Φϕ(pidx) _hist_Δ(pidx) _pdff(pidx)])
+    end
 
     fig = make_phaser_fig(plots;
         width_per_plot=230,
@@ -814,10 +931,10 @@ function fig_cor_two_echoes_phaser(fig_name=""; max_bal=2)
         movie=false,
     )
 
-    phaser_plots(plots, fig, cal.PH, fitpar, fitopt;
+    phaser_plots(plots, fig, cal.bm.PH, cal.fitpar, cal.fitopt;
         col_in=:blue, col_out=:red, #alpha_out=0.3,
-        font_pt=12, label_pt=10,
-        slice=64,
+        label_pt=10,
+        slice=slice,
         j=1,
         oi=x -> rotl90(x[:, end:-1:1]),
     )
@@ -838,9 +955,9 @@ end
 """
     calc_simulation()
 
-Simulate numerical phantom, shown in figures 9 and S1
+Simulate numerical phantom, shown in figures 9, S1 and S2
 """
-function calc_simulation()
+function calc_simulation(; sigma=0.15, max_bal=100)
     spp = BM.SimPhaPar()
 
     spp.TEs = 1.15 .* [1, 2, 3]
@@ -853,9 +970,9 @@ function calc_simulation()
     spp.local_fit = true
     spp.S_holes = 0.7
     spp.S_io = :out
-    spp.cov_mat = 0.15^2 * [1;;]
-    spp.subsampling = :random
-    spp.balance = 100
+    spp.cov_mat = sigma^2 * [1;;]
+    spp.subsampling = :fibonacci
+    spp.balance = max_bal
     spp.add_noise = true
     spp.os_fac = [1.7]
     spp.rng = MersenneTwister(1)
@@ -870,15 +987,16 @@ function calc_simulation()
     spp.R2s_rng = [0, 0.2]
     spp.R2s_per = [7, 5]
 
-    BM.simulate_phantom(spp);
+    BM.simulate_phantom(spp)
 end
 
 """
-    simulation_figures(sim, fig_name="", fig_supp_name="")
+    simulation_figures(sim, fig_name="", fig_supp_name="", fig_ff_R2s="")
 
-Calculate figures 9 and S1 (simulation)
+Calculate figures 9, S1 and S2 (simulation)
 """
-function simulation_figures(sim, fig_name="", fig_supp_name="")
+function simulation_figures(sim, fig_name="", fig_supp_name="", fig_ff_R2s_name="";
+    bnd=nothing)
     _ϕ_true = cb -> (val=:ϕ_true, rng_2π=false, cm=:roma, colbar=cb)
     _R2s_true = cb -> (val=:R2s_true, cm=:batlow, colbar=cb)
     _pdff_true = cb -> (val=:pdff_true, cm=:imola, colbar=cb)
@@ -893,16 +1011,26 @@ function simulation_figures(sim, fig_name="", fig_supp_name="")
     _pdff_nn = (n, cb) -> (val=:pdff_nn, cm=:imola, n=n, colbar=cb)
     _R2s = (n, cb) -> (val=:R2s, cm=:batlow, n=n, colbar=cb)
     _R2s_nn = (n, cb) -> (val=:R2s_nn, cm=:batlow, n=n, colbar=cb)
-    _ϕ = (n, cb) -> (val=:ϕ, rng_2π=false, rng_ϕ=:ϕ, cm=:roma, n=n, colbar=cb)
-    _ϕ_nn = (n, cb) -> (val=:ϕ_nn, rng_ϕ=:ϕ, rng_2π=false, cm=:roma, n=n, colbar=cb)
-    _ϕ_comp = n -> (val=:ϕ_comp, n=n)
+    #_ϕ = (n, cb) -> (val=:ϕ, rng_2π=false, rng_ϕ=:ϕ, cm=:roma, n=n, colbar=cb)
+    #_ϕ_nn = (n, cb) -> (val=:ϕ_nn, rng_ϕ=:ϕ, rng_2π=false, cm=:roma, n=n, colbar=cb)
+    _ϕ = (n, cb) -> (val=:ϕ, rng_2π=false, rng_ϕ=:ϕ_true, cm=:roma, n=n, colbar=cb)
+    _ϕ_nn = (n, cb) -> (val=:ϕ_nn, rng_ϕ=:ϕ_true, rng_2π=false, cm=:roma, n=n, colbar=cb)
+    if bnd === nothing
+        _ϕ_comp = n -> (val=:ϕ_comp, n=n)
+    else
+        _ϕ_comp = n -> (val=:ϕ_comp, n=n, bnd=bnd)
+    end
     _Φϕ_comp = n -> (val=:Φϕ_comp, n=n)
+    _ff_R2s_true = (val=:ff_R2s_true, kwargs=(; markersize=2))
 
     plots = [
         _ϕ_true(true) _Δ_R_nn(0, false) _Δ_R(0, true);
         _ϕ_comp(1) _Δϕ_true_nn(1, false) _Δϕ_true(1, true);
         _ϕ_comp(-1) _ϕ_nn(-1, false) _ϕ(-1, true)
     ]
+
+    @show typeof(plots)
+    @show size(plots)
 
     fig = make_phaser_fig(plots;
         width_per_plot=280,
@@ -911,19 +1039,28 @@ function simulation_figures(sim, fig_name="", fig_supp_name="")
         movie=false,
     )
 
-    phaser_plots(plots, fig, sim.PH, sim.fitpar, sim.fitopt;
-        col_in=:blue, col_out=:red, #alpha_out=0.3,
-        font_pt=12, label_pt=8,
-        sim=sim,
-    )
+    if !isempty(fig_name)
+        phaser_plots(plots, fig, sim.PH, sim.fitpar, sim.fitopt;
+            col_in=:blue, col_out=:red, #alpha_out=0.3,
+            label_pt=8,
+            sim=sim,
+        )
 
-    display(fig)
+        display(fig)
+
+        save(fig_name * ".svg", fig)
+        save(fig_name * ".eps", fig)
+        run(`epspdf $fig_name".eps"`)
+    end
 
     plots = [
         _R2s_true(false) _R2s_nn(-1, false) _R2s(-1, true);
         _pdff_true(false) _pdff_nn(-1, false) _pdff(-1, true)
         _Φϕ_comp(-1) _ΔΦ_true_nn(-1, false) _ΔΦ_true(-1, true);
     ]
+
+    @show typeof(plots)
+    @show size(plots)
 
     fig_supp = make_phaser_fig(plots;
         width_per_plot=280,
@@ -932,24 +1069,47 @@ function simulation_figures(sim, fig_name="", fig_supp_name="")
         movie=false,
     )
 
-    phaser_plots(plots, fig_supp, sim.PH, sim.fitpar, sim.fitopt;
-        col_in=:blue, col_out=:red, #alpha_out=0.3,
-        font_pt=12, label_pt=8,
-        sim=sim,
-    )
-
-    display(fig_supp)
-
-    if !isempty(fig_name)
-        save(fig_name * ".svg", fig)
-        save(fig_name * ".eps", fig)
-        run(`epspdf $fig_name".eps"`)
-    end
-
     if !isempty(fig_supp_name)
+        phaser_plots(plots, fig_supp, sim.PH, sim.fitpar, sim.fitopt;
+            col_in=:blue, col_out=:red, #alpha_out=0.3,
+            label_pt=8,
+            sim=sim,
+        )
+
+        display(fig_supp)
+
         save(fig_supp_name * ".svg", fig_supp)
         save(fig_supp_name * ".eps", fig_supp)
         run(`epspdf $fig_supp_name".eps"`)
+    end
+
+    plots = [
+        _ff_R2s_true;;
+    ]
+
+    @show typeof(plots)
+    @show size(plots)
+
+    fig_ff_R2s = make_phaser_fig(plots;
+        width_per_plot=500,
+        height_per_plot=500,
+        font_pt=12,
+        movie=false,
+    )
+
+    if !isempty(fig_ff_R2s_name)
+        phaser_plots(plots, fig_ff_R2s, sim.PH, sim.fitpar, sim.fitopt;
+            col_in=:blue, col_out=:red, #alpha_out=0.3,
+            label_pt=10,
+            sim=sim,
+            letters=false,
+        )
+
+        display(fig_ff_R2s)
+
+        save(fig_ff_R2s_name * ".svg", fig_ff_R2s)
+        save(fig_ff_R2s_name * ".eps", fig_ff_R2s)
+        run(`epspdf $fig_ff_R2s_name".eps"`)
     end
 
     return (; fig)
@@ -959,7 +1119,7 @@ end
     phaser_plots(plots, fig, PH, fitpar, fitopt, axs=[;;], cbs=[;;];
     j=1,
     col_in=:blue, col_out=:red, alpha_out=1.0,
-    font_pt=12, label_pt=10,
+    label_pt=10,
     slice=1,
     oi=x -> x,
     letters=true,
@@ -972,7 +1132,7 @@ Helper routine to create figures
 function phaser_plots(plots, fig, PH, fitpar, fitopt, axs=[;;], cbs=[;;];
     j=1,
     col_in=:blue, col_out=:red, alpha_out=1.0,
-    font_pt=12, label_pt=10,
+    label_pt=10,
     slice=1,
     oi=x -> x,
     letters=true,
@@ -1048,7 +1208,6 @@ function phaser_plots(plots, fig, PH, fitpar, fitopt, axs=[;;], cbs=[;;];
         R2s_true[noR] .= NaN
         pdff_true = sim.phantom.f
         pdff_true[noR] .= NaN
-
 
         PH_nn = sim.PH_nn
 
@@ -1204,6 +1363,12 @@ function phaser_plots(plots, fig, PH, fitpar, fitopt, axs=[;;], cbs=[;;];
                     Δ_ = plt.val == :Δ_R ? Φ_R : Φ_R_nn
                 else
                     Δ_ = plt.val == :Δ_R ? BM.map_2π(Φ_R - ϕ[n]) : BM.map_2π(Φ_R_nn - ϕ_nn[n])
+                end
+
+                if hasproperty(plt, :show_susa) && plt.show_susa
+                    Δ_ = deepcopy(Δ_)
+                    Δ_[noS] .= NaN
+                    Δ_[S] .= 0
                 end
 
                 heatmap!(ax,
@@ -1472,6 +1637,8 @@ function phaser_plots(plots, fig, PH, fitpar, fitopt, axs=[;;], cbs=[;;];
                     rng_ϕ = plt.rng_2π ? (-π, π) : (min(Φϕ_[R]..., -π), max(Φϕ_[R]..., π))
                 end
 
+                @show rng_ϕ
+
                 heatmap!(ax,
                     plt.rng_2π ? oi(BM.map_2π(Φϕ_)) : oi(Φϕ_),
                     colormap=plt.cm,
@@ -1607,6 +1774,22 @@ function phaser_plots(plots, fig, PH, fitpar, fitopt, axs=[;;], cbs=[;;];
 
             # --------------------------------------------------------------------
 
+            if plt.val == :ff_R2s_true
+                ax.title = L"$(\text{FF},\,R_2^\ast)$"
+
+                @show typeof(pdff_true[R])
+                @show typeof(R2s_true[R])
+
+                scatter!(ax, pdff_true[R], R2s_true[R]; plt.kwargs...)
+                ax.limits = (0, 1, 0, 0.2)
+                ax.xlabel = L"FF$$"
+                ax.ylabel = L"$R_2^\ast$ [1/ms]"
+                ax.xticklabelsize = label_pt * pt
+                ax.yticklabelsize = label_pt * pt
+            end
+
+            # --------------------------------------------------------------------
+
             if plt.val ∈ (:ϕ, :ϕ_nn)
                 n = plt.n
                 n == -1 && (n = plt.val == :ϕ ? nΔ : nΔ_nn)
@@ -1628,12 +1811,15 @@ function phaser_plots(plots, fig, PH, fitpar, fitopt, axs=[;;], cbs=[;;];
                     plt.rng_ϕ == :Φϕ && (rng_ϕ = (min(Φϕ[n][R]..., -π), max(Φϕ[n][R]..., π)))
                 elseif plt.rng_ϕ == :ϕ
                     rng_ϕ = (min(ϕ[n][R]..., -π), max(ϕ[n][R]..., π))
+                elseif plt.rng_ϕ == :ϕ_true
+                    rng_ϕ = (min(ϕ_true[R]..., -π), max(ϕ_true[R]..., π))
                 else
                     rng_ϕ = plt.rng_2π ? (-π, π) : (min(ϕ[n][R]..., -π), max(ϕ[n][R]..., π))
                 end
 
                 heatmap!(ax,
-                    plt.rng_2π ? oi(BM.map_2π(ϕ[n])) : oi(ϕ[n]),
+                    #plt.rng_2π ? oi(BM.map_2π(ϕ[n])) : oi(ϕ[n]),
+                    plt.rng_2π ? oi(BM.map_2π(ϕ_)) : oi(ϕ_),
                     colormap=plt.cm,
                     colorrange=rng_ϕ,
                     nan_color=:black,
@@ -1797,21 +1983,25 @@ function phaser_plots(plots, fig, PH, fitpar, fitopt, axs=[;;], cbs=[;;];
                 n = plt.n
                 if n == -1
                     ax.title = L"$\varphi^{(n)} - \varphi$"
-                    Δϕ = (ϕ[end]-ϕ_true)[R];
-                    Δϕ_nn = (ϕ_nn[end]-ϕ_true)[R];
+                    Δϕ = (ϕ[end]-ϕ_true)[R]
+                    Δϕ_nn = (ϕ_nn[end]-ϕ_true)[R]
                 else
                     ax.title = L"$\varphi^{(%$n)} - \varphi$"
-                    Δϕ = (ϕ[n]-ϕ_true)[R];
-                    Δϕ_nn = (ϕ_nn[n]-ϕ_true)[R];
+                    Δϕ = (ϕ[n]-ϕ_true)[R]
+                    Δϕ_nn = (ϕ_nn[n]-ϕ_true)[R]
                 end
 
                 hideydecorations!(ax)
 
-                mi = min(minimum(Δϕ), minimum(Δϕ_nn))
-                ma = max(maximum(Δϕ), maximum(Δϕ_nn))
+                if hasproperty(plt, :bnd) && n == -1
+                    mi, ma = plt.bnd
+                else
+                    mi = min(minimum(Δϕ), minimum(Δϕ_nn))
+                    ma = max(maximum(Δϕ), maximum(Δϕ_nn))
+                end
 
-                hi_no = stephist!(ax, Δϕ, color=:red, scale_to=1, bins=100)
-                hi_nono = stephist!(ax, Δϕ_nn, color=:blue, scale_to=1, bins=100)
+                hi_no = stephist!(ax, Δϕ[mi .< Δϕ .< ma], color=:red, scale_to=1, bins=100)
+                hi_nono = stephist!(ax, Δϕ_nn[mi .< Δϕ_nn .< ma], color=:blue, scale_to=1, bins=100)
 
                 axislegend(ax, [hi_nono, hi_no], [L"ideal$$", L"noisy$$"], labelsize=10pt, position=:rt)
 
@@ -1823,7 +2013,7 @@ function phaser_plots(plots, fig, PH, fitpar, fitopt, axs=[;;], cbs=[;;];
 
             if plt.val == :Φϕ_comp
                 n = plt.n
-                
+
                 n_ = n == -1 ? nΔ : n
                 n_nn_ = n == -1 ? nΔ_nn : n
 
@@ -1832,12 +2022,12 @@ function phaser_plots(plots, fig, PH, fitpar, fitopt, axs=[;;], cbs=[;;];
 
                 if n == -1
                     ax.title = L"$\Phi^{(n)} - \varphi$"
-                    Δϕ = (Φϕ[end]-ϕ_true)[R];
-                    Δϕ_nn = (Φϕ_nn[end]-ϕ_true)[R];
+                    Δϕ = (Φϕ[end]-ϕ_true)[R]
+                    Δϕ_nn = (Φϕ_nn[end]-ϕ_true)[R]
                 else
                     ax.title = L"$\Phi^{(%$n)} - \varphi$"
-                    Δϕ = (Φϕ[n]-ϕ_true)[R];
-                    Δϕ_nn = (Φϕ_nn[n]-ϕ_true)[R];
+                    Δϕ = (Φϕ[n]-ϕ_true)[R]
+                    Δϕ_nn = (Φϕ_nn[n]-ϕ_true)[R]
                 end
 
                 hideydecorations!(ax)
@@ -2035,8 +2225,8 @@ function grad_movie(cal, movie_name=""; slp=0.0, n_ink=1)
     if isempty(movie_name)
         for n = 1:n_ink:n_max
             fig, axs, cbs = phaser_plots(plotss[n], fig, cal.PH, cal.fitpar, cal.fitopt, axs, cbs;
-                col_in=:blue, col_out=:red, 
-                font_pt=12, label_pt=10,
+                col_in=:blue, col_out=:red,
+                label_pt=10,
                 slice=1,
                 j=1,
                 oi=cal.oi,
@@ -2048,10 +2238,97 @@ function grad_movie(cal, movie_name=""; slp=0.0, n_ink=1)
         record(fig, movie_name, 1:n_ink:n_max; framerate=1) do n
             fig, axs, cbs = phaser_plots(plotss[n], fig, cal.PH, cal.fitpar, cal.fitopt, axs, cbs;
                 col_in=:blue, col_out=:red,
-                font_pt=12, label_pt=10,
+                label_pt=10,
                 slice=1,
                 j=1,
                 oi=cal.oi,
+                letters=true,
+            )
+        end
+    end
+
+    fig
+end
+
+function oi_3D(nTE)
+    nTE == 2 && return x -> rotl90(x[:, end:-1:1])
+    nTE == 3 &&
+        x -> x
+end
+
+"""
+    movie_3D(cal, movie_name=""; slp=0.0, slcs=[], plts=[3, -1], set_id)
+
+Generate movies for 3D datasets.
+"""
+function movie_3D(cal, movie_name=""; slp=0.0, slcs=[], plts=[3, -1], set_id)
+    println()
+    println("========================================================")
+    println("generate " * movie_name)
+    println("========================================================")
+    println()
+
+    @assert set_id ∈ (:two_echo, :three_echo)
+
+    if set_id == :two_echo
+        oi = x -> rotl90(x[:, end:-1:1])
+        slcs == [] && (slcs = 5:98)
+        framerate = 2
+    elseif set_id == :three_echo
+        oi = x -> rotr90(x)
+        slcs == [] && (slcs = 5:56)
+        framerate = 2
+    end
+
+    GLMakie.activate!()
+
+    _Φϕ = n -> (val=:Φϕ, rng_2π=true, cm=:roma, n=n, colbar=true)
+    _pdff = n -> (val=:pdff, cm=:imola, n=n, colbar=true)
+    _Δ_R = n -> (val=:Δ_R, rng_2π=true, cm=:roma, n=n, colbar=true)
+    _hist_Δ = n -> (val=:hist_Δ, n=n, nbins=100, bin_mode=:fixed)
+
+    plots = [_Δ_R(0) _hist_Δ(0) _pdff(0)]
+
+    for pidx in plts
+        plots = vcat(plots, [_Φϕ(pidx) _hist_Δ(pidx) _pdff(pidx)])
+    end
+
+    fig = make_phaser_fig(plots;
+        width_per_plot=230,
+        height_per_plot=210,
+        font_pt=12,
+        movie=true,
+    )
+
+    axs = [;;]
+    cbs = [;;]
+
+    n0 = slcs[1] - 1
+
+    display(fig)
+
+    if isempty(movie_name)
+        for n in slcs
+            println(n - n0, " / ", length(slcs))
+            fig, axs, cbs = phaser_plots(plots, fig, cal.bm.PH, cal.fitpar, cal.fitopt, axs, cbs;
+                col_in=:blue, col_out=:red,
+                label_pt=10,
+                slice=n,
+                j=1,
+                oi=oi,
+                letters=true,
+            )
+            sleep(slp)
+        end
+    else
+        record(fig, movie_name, slcs; framerate=framerate) do n
+            println(n - n0, " / ", length(slcs))
+            fig, axs, cbs = phaser_plots(plots, fig, cal.bm.PH, cal.fitpar, cal.fitopt, axs, cbs;
+                col_in=:blue, col_out=:red,
+                label_pt=10,
+                slice=n,
+                j=1,
+                oi=oi,
                 letters=true,
             )
         end
