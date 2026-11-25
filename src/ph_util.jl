@@ -793,7 +793,7 @@ Generate figure 12 (two-echo 3D scan)
 function calc_cor_two_echoes_phaser(;
     thresh=0.25,
     max_bal=2,
-    redundancy=42, 
+    redundancy=42,
     subsampling=:fibonacci,
     K=[5, 5, 5],
     os_fac=[1.1],
@@ -957,12 +957,13 @@ end
 
 Simulate numerical phantom, shown in figures 9, S1 and S2
 """
-function calc_simulation(; sigma=0.15, max_bal=100)
+function calc_simulation(; sigma=0.25, max_bal=200, balance_nn=2)
     spp = BM.SimPhaPar()
 
-    spp.TEs = 1.15 .* [1, 2, 3]
     spp.B0 = 1.5
-    spp.freq_rng = [-2, 2]
+    #spp.TEs = 1.15 .* [1, 2, 3] #.- 0.05
+    spp.TEs = te3(1, spp.B0)
+    spp.freq_rng = [-2, 2] * (1.15 / (spp.TEs[2] - spp.TEs[1]))
     spp.Nρ = [256, 256]
     spp.K = [5, 5]
     spp.K_pha = [8, 8]
@@ -987,7 +988,7 @@ function calc_simulation(; sigma=0.15, max_bal=100)
     spp.R2s_rng = [0, 0.2]
     spp.R2s_per = [7, 5]
 
-    BM.simulate_phantom(spp)
+    BM.simulate_phantom(spp; balance_nn=balance_nn)
 end
 
 """
@@ -996,7 +997,7 @@ end
 Calculate figures 9, S1 and S2 (simulation)
 """
 function simulation_figures(sim, fig_name="", fig_supp_name="", fig_ff_R2s_name="";
-    bnd=nothing)
+    bnd=nothing, supp=false)
     _ϕ_true = cb -> (val=:ϕ_true, rng_2π=false, cm=:roma, colbar=cb)
     _R2s_true = cb -> (val=:R2s_true, cm=:batlow, colbar=cb)
     _pdff_true = cb -> (val=:pdff_true, cm=:imola, colbar=cb)
@@ -1021,16 +1022,24 @@ function simulation_figures(sim, fig_name="", fig_supp_name="", fig_ff_R2s_name=
         _ϕ_comp = n -> (val=:ϕ_comp, n=n, bnd=bnd)
     end
     _Φϕ_comp = n -> (val=:Φϕ_comp, n=n)
+    _Φ_pdff_ = (val=:Φ_pdff, kwargs=(; markersize=1))
+    _Φ_R2s_ = (val=:Φ_R2s, kwargs=(; markersize=1))
     _ff_R2s_true = (val=:ff_R2s_true, kwargs=(; markersize=2))
 
-    plots = [
-        _ϕ_true(true) _Δ_R_nn(0, false) _Δ_R(0, true);
-        _ϕ_comp(1) _Δϕ_true_nn(1, false) _Δϕ_true(1, true);
-        _ϕ_comp(-1) _ϕ_nn(-1, false) _ϕ(-1, true)
-    ]
-
-    @show typeof(plots)
-    @show size(plots)
+    if supp
+        plots = [
+            _ϕ_true(false) _Δ_R_nn(0, false) _Δ_R(0, true);
+            _ϕ_comp(1) _Δϕ_true_nn(1, false) _Δϕ_true(1, true);
+            _ϕ_comp(-1) _ϕ_nn(-1, false) _ϕ(-1, true);
+            _Φϕ_comp(0) _Φ_pdff_ _Φ_R2s_
+        ]
+    else
+        plots = [
+            _ϕ_true(true) _Δ_R_nn(0, false) _Δ_R(0, true);
+            _ϕ_comp(1) _Δϕ_true_nn(1, false) _Δϕ_true(1, true);
+            _ϕ_comp(-1) _ϕ_nn(-1, false) _ϕ(-1, true)
+        ]
+    end
 
     fig = make_phaser_fig(plots;
         width_per_plot=280,
@@ -1055,7 +1064,7 @@ function simulation_figures(sim, fig_name="", fig_supp_name="", fig_ff_R2s_name=
 
     plots = [
         _R2s_true(false) _R2s_nn(-1, false) _R2s(-1, true);
-        _pdff_true(false) _pdff_nn(-1, false) _pdff(-1, true)
+        _pdff_true(false) _pdff_nn(-1, false) _pdff(-1, true);
         _Φϕ_comp(-1) _ΔΦ_true_nn(-1, false) _ΔΦ_true(-1, true);
     ]
 
@@ -1409,7 +1418,7 @@ function phaser_plots(plots, fig, PH, fitpar, fitopt, axs=[;;], cbs=[;;];
                 n == -1 && (n = plt.val == :ΔΦ_true ? nΔ : nΔ_nn)
 
                 if n == 0
-                    ax.title = L"$\Phi - \varphi$"
+                    ax.title = L"$\mathcal{P}\,\left[\,\Phi - \varphi\,\right]$"
                 else
                     ax.title = L"$\Phi^{(%$n)} - \varphi$"
                 end
@@ -1418,7 +1427,8 @@ function phaser_plots(plots, fig, PH, fitpar, fitopt, axs=[;;], cbs=[;;];
                 rng_ϕ = (-π, π)
 
                 if n == 0
-                    Δ_ = plt.val == :Δ_true ? Φ - ϕ_true : Φ_R - ϕ_true
+                    #Δ_ = plt.val == :Δ_true ? Φ - ϕ_true : Φ_R - ϕ_true
+                    Δ_ = plt.val == :ΔΦ_true ? BM.map_2π(Φ - ϕ_true) : BM.map_2π(Φ_nn - ϕ_true)
                 else
                     if plt.val == :ΔΦ_true && isempty(Φϕ[n])
                         lazy_calc(n)
@@ -2014,16 +2024,21 @@ function phaser_plots(plots, fig, PH, fitpar, fitopt, axs=[;;], cbs=[;;];
             if plt.val == :Φϕ_comp
                 n = plt.n
 
-                n_ = n == -1 ? nΔ : n
-                n_nn_ = n == -1 ? nΔ_nn : n
+                n_ = n ∈ (-1, 0) ? nΔ : n
+                n_nn_ = n ∈ (-1, 0) ? nΔ_nn : n
 
-                isempty(Φϕ[n_]) && lazy_calc(n_)
-                isempty(Φϕ_nn[n_nn_]) && lazy_calc(n_nn_)
+                    isempty(Φϕ[n_]) && lazy_calc(n_)
+                    isempty(Φϕ_nn[n_nn_]) && lazy_calc(n_nn_)
 
                 if n == -1
                     ax.title = L"$\Phi^{(n)} - \varphi$"
                     Δϕ = (Φϕ[end]-ϕ_true)[R]
                     Δϕ_nn = (Φϕ_nn[end]-ϕ_true)[R]
+                elseif n == 0
+                    ax.title = L"$\mathcal{P}\,\left[\,\Phi - \varphi\,\right]$"
+                    Δϕ = (BM.map_2π(Φ-ϕ_true))[R]
+                    Δϕf = (BM.map_2π(Φϕ[end]-ϕ_true))[R]
+                    Δϕ_nn = (BM.map_2π(Φ_nn-ϕ_true))[R]
                 else
                     ax.title = L"$\Phi^{(%$n)} - \varphi$"
                     Δϕ = (Φϕ[n]-ϕ_true)[R]
@@ -2036,12 +2051,65 @@ function phaser_plots(plots, fig, PH, fitpar, fitopt, axs=[;;], cbs=[;;];
                 ma = max(maximum(Δϕ), maximum(Δϕ_nn))
 
                 hi_no = stephist!(ax, Δϕ, color=:red, scale_to=1, bins=100)
+                hi_nof = stephist!(ax, Δϕf, color=:green, scale_to=1, bins=100)
                 hi_nono = stephist!(ax, Δϕ_nn, color=:blue, scale_to=1, bins=100)
 
-                axislegend(ax, [hi_nono, hi_no], [L"ideal$$", L"noisy$$"], labelsize=10pt, position=:rt)
+                axislegend(ax, [hi_nono, hi_no, hi_nof], [L"ideal$$", L"noisy$$", L"$\Delta\Phi^{(n)}$"], labelsize=10pt, position=:rt)
 
                 ax.xticklabelsize = label_pt * pt
-                ax.limits = (mi, ma, 0, nothing)
+                ax.limits = n == 0 ? (-π, π, 0, nothing) : (mi, ma, 0, nothing)
+                if n == 0
+                    ax.xticks = ([-π, 0.0, π], ["-π", "0", "π"])
+                    ax.xticklabelsize = label_pt * pt
+                end
+            end
+
+            # --------------------------------------------------------------------
+
+            if plt.val == :Φ_pdff
+                Δϕ_ = (BM.map_2π(Φ-ϕ_true))[R]
+                Δϕ_nn_ = (BM.map_2π(Φ_nn-ϕ_true))[R]
+
+                Δpdff_ = (pdff_ML - pdff_true)[R]
+                Δpdff_nn_ = (pdff_ML_nn - pdff_true)[R]
+
+                #stephist!(ax, Δpdff_, color=:red, scale_to=1, bins=100)
+                #stephist!(ax, Δpdff_nn_, color=:blue, scale_to=1, bins=100)
+
+                scatter!(ax, Δϕ_, Δpdff_, color=:red; plt.kwargs...)
+                scatter!(ax, Δϕ_nn_, Δpdff_nn_, color=:blue)
+                ax.limits = (-π, π, -1, 1)
+                ax.xlabel = L"$\mathcal{P}\,\left[\,\Phi - \varphi\,\right]$"
+                ax.ylabel = L"$\Delta \text{FF}$"
+                ax.xticks = ([-π, 0.0, π], ["-π", "0", "π"])
+                ax.xticklabelsize = label_pt * pt
+                ax.yticklabelsize = label_pt * pt
+                ax.xgridvisible=false
+                ax.ygridvisible=false
+            end
+
+            # --------------------------------------------------------------------
+
+            if plt.val == :Φ_R2s
+                Δϕ_ = (BM.map_2π(Φ-ϕ_true))[R]
+                Δϕ_nn_ = (BM.map_2π(Φ_nn-ϕ_true))[R]
+
+                ΔR2s_ = (R2s_ML - R2s_true)[R]
+                ΔR2s_nn_ = (R2s_ML_nn - R2s_true)[R]
+
+                #stephist!(ax, Δpdff_, color=:red, scale_to=1, bins=100)
+                #stephist!(ax, Δpdff_nn_, color=:blue, scale_to=1, bins=100)
+
+                scatter!(ax, Δϕ_, ΔR2s_, color=:red; plt.kwargs...)
+                scatter!(ax, Δϕ_nn_, ΔR2s_nn_, color=:blue)
+                ax.limits = (-π, π, -0.2, 0.2)
+                ax.xlabel = L"$\mathcal{P}\,\left[\,\Phi - \varphi\,\right]$"
+                ax.ylabel = L"$\Delta R_2^\ast$"
+                ax.xticks = ([-π, 0.0, π], ["-π", "0", "π"])
+                ax.xticklabelsize = label_pt * pt
+                ax.yticklabelsize = label_pt * pt
+                ax.xgridvisible=false
+                ax.ygridvisible=false
             end
 
             # --------------------------------------------------------------------
@@ -2335,4 +2403,21 @@ function movie_3D(cal, movie_name=""; slp=0.0, slcs=[], plts=[3, -1], set_id)
     end
 
     fig
+end
+
+"""
+    te3(k, B0)
+
+Calculate SNR-optimal echo times (Reeder et al., 2007).
+
+# Remark
+
+Auxiliary routine
+"""
+function te3(k, B0)
+    Δf = 3.4 * 0.042577 * B0
+    Δt = 1 / (3 * Δf)
+    t2 = (2k + 1) / (4 * Δf)
+
+    [t2 - Δt, t2, t2 + Δt]
 end
